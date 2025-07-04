@@ -2,6 +2,8 @@ import { createMcpHandler } from "@vercel/mcp-adapter";
 import { z } from "zod";
 import { prisma } from '@/app/prisma';
 import { NextRequest } from 'next/server';
+import { opportunityZoneService } from '@/lib/services/opportunity-zones';
+import { geocodingService } from '@/lib/services/geocoding';
 
 // Authentication helper
 async function authenticateRequest(request: NextRequest) {
@@ -69,21 +71,230 @@ const handler = async (req: Request) => {
   return createMcpHandler(
     (server) => {
       server.tool(
-        "add_numbers",
-        "Adds two numbers together and returns the sum",
+        "check_opportunity_zone",
+        "Check if coordinates or an address is in an opportunity zone",
         {
-          a: z.number().describe("First number to add"),
-          b: z.number().describe("Second number to add"),
+          address: z.string().optional().describe("Full address to check"),
+          latitude: z.number().optional().describe("Latitude (alternative to address)"),
+          longitude: z.number().optional().describe("Longitude (alternative to address)"),
         },
-        async ({ a, b }) => {
-          return {
-            content: [
-              {
-                type: "text",
-                text: `The sum of ${a} and ${b} is ${a + b}`,
-              },
-            ],
+        async ({ address, latitude, longitude }) => {
+          // Create a logger that captures messages for the response
+          const messages: string[] = [];
+          const log = (type: string, message: string) => {
+            messages.push(`[${type.toUpperCase()}] ${message}`);
+            console.log(`[${type.toUpperCase()}] ${message}`);
           };
+
+          try {
+            let coords: { latitude: number; longitude: number };
+
+            if (address) {
+              // Geocode the address first
+              const geocodeResult = await geocodingService.geocodeAddress(address, log);
+              coords = {
+                latitude: geocodeResult.latitude,
+                longitude: geocodeResult.longitude
+              };
+            } else if (latitude !== undefined && longitude !== undefined) {
+              coords = { latitude, longitude };
+            } else {
+              throw new Error("Either address or both latitude and longitude must be provided");
+            }
+
+            // Check if point is in an opportunity zone
+            const result = await opportunityZoneService.checkPoint(coords.latitude, coords.longitude, log);
+            
+            const responseText = address 
+              ? `Address "${address}" (${coords.latitude}, ${coords.longitude}) is ${result.isInZone ? 'in' : 'not in'} an opportunity zone.`
+              : `Point (${coords.latitude}, ${coords.longitude}) is ${result.isInZone ? 'in' : 'not in'} an opportunity zone.`;
+
+            const fullResponse = [
+              responseText,
+              result.isInZone && result.zoneId ? `Zone ID: ${result.zoneId}` : '',
+              `Data version: ${result.metadata.version}`,
+              `Last updated: ${result.metadata.lastUpdated.toISOString()}`,
+              `Feature count: ${result.metadata.featureCount}`,
+              '',
+              ...messages
+            ].filter(Boolean).join('\n');
+
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: fullResponse,
+                },
+              ],
+            };
+          } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            const fullResponse = [
+              `Error: ${errorMessage}`,
+              '',
+              ...messages
+            ].join('\n');
+
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: fullResponse,
+                },
+              ],
+            };
+          }
+        }
+      );
+
+      server.tool(
+        "geocode_address",
+        "Convert an address to coordinates",
+        {
+          address: z.string().describe("Address to geocode"),
+        },
+        async ({ address }) => {
+          const messages: string[] = [];
+          const log = (type: string, message: string) => {
+            messages.push(`[${type.toUpperCase()}] ${message}`);
+            console.log(`[${type.toUpperCase()}] ${message}`);
+          };
+
+          try {
+            const result = await geocodingService.geocodeAddress(address, log);
+            
+            const responseText = [
+              `Address: ${address}`,
+              `Coordinates: ${result.latitude}, ${result.longitude}`,
+              `Display name: ${result.displayName}`,
+              '',
+              ...messages
+            ].join('\n');
+
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: responseText,
+                },
+              ],
+            };
+          } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            const fullResponse = [
+              `Error geocoding address "${address}": ${errorMessage}`,
+              '',
+              ...messages
+            ].join('\n');
+
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: fullResponse,
+                },
+              ],
+            };
+          }
+        }
+      );
+
+      server.tool(
+        "get_oz_status",
+        "Get opportunity zone service status and cache information",
+        {},
+        async () => {
+          try {
+            const metrics = opportunityZoneService.getCacheMetrics();
+            const geocodingStats = await geocodingService.getCacheStats();
+            
+            const responseText = [
+              "=== Opportunity Zone Service Status ===",
+              `Initialized: ${metrics.isInitialized ? '✅ Yes' : '❌ No'}`,
+              `Last updated: ${metrics.lastUpdated?.toISOString() || 'Never'}`,
+              `Next refresh due: ${metrics.nextRefreshDue?.toISOString() || 'Unknown'}`,
+              `Feature count: ${metrics.featureCount || 0}`,
+              `Data version: ${metrics.version || 'None'}`,
+              `Data hash: ${metrics.dataHash || 'None'}`,
+              "",
+              "=== Geocoding Cache Status ===",
+              `Total cached addresses: ${geocodingStats.totalCached}`,
+              `Expired entries: ${geocodingStats.expiredEntries}`,
+            ].join('\n');
+
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: responseText,
+                },
+              ],
+            };
+          } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: `Error getting status: ${errorMessage}`,
+                },
+              ],
+            };
+          }
+        }
+      );
+
+      server.tool(
+        "refresh_oz_data",
+        "Force refresh of opportunity zone data",
+        {},
+        async () => {
+          const messages: string[] = [];
+          const log = (type: string, message: string) => {
+            messages.push(`[${type.toUpperCase()}] ${message}`);
+            console.log(`[${type.toUpperCase()}] ${message}`);
+          };
+
+          try {
+            await opportunityZoneService.forceRefresh(log);
+            const metrics = opportunityZoneService.getCacheMetrics();
+            
+            const responseText = [
+              "✅ Opportunity zone data refreshed successfully!",
+              "",
+              `Feature count: ${metrics.featureCount}`,
+              `Data version: ${metrics.version}`,
+              `Last updated: ${metrics.lastUpdated?.toISOString()}`,
+              `Next refresh due: ${metrics.nextRefreshDue?.toISOString()}`,
+              "",
+              ...messages
+            ].join('\n');
+
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: responseText,
+                },
+              ],
+            };
+          } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            const fullResponse = [
+              `❌ Failed to refresh opportunity zone data: ${errorMessage}`,
+              '',
+              ...messages
+            ].join('\n');
+
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: fullResponse,
+                },
+              ],
+            };
+          }
         }
       );
     },

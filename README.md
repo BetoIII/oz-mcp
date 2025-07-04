@@ -1,8 +1,34 @@
-# OAuth 2.1 MCP Server as a Next.js app on Vercel
+# Opportunity Zone Search MCP Server
 
-This is a Next.js-based application that provides an MCP (Model Context Protocol) server with OAuth 2.1 authentication support. It is intended as a model for building your own MCP server in a Next.js context. It uses the [@vercel/mcp-adapter](https://github.com/vercel/mcp-adapter) to handle the MCP protocol, in order to support both SSE and Streamable HTTP transports.
+This is a Next.js-based MCP (Model Context Protocol) server that provides opportunity zone search functionality with OAuth 2.1 authentication. It allows users to check if specific coordinates or addresses are located within designated opportunity zones in the United States.
 
-In addition to being an OAuth server, it also requires the user authenticate. This is currently configured to use Google as a provider, but you could authenticate users however you want (X, GitHub, your own user/password database etc.) without breaking the OAuth flow.
+## Features
+
+- **Opportunity Zone Lookup**: Check if coordinates or addresses are in opportunity zones
+- **Address Geocoding**: Convert addresses to coordinates using geocode.maps.co
+- **Spatial Indexing**: Fast point-in-polygon lookups using RBush spatial indexing
+- **Data Caching**: Persistent caching of GeoJSON data and geocoding results in PostgreSQL
+- **OAuth 2.1 Authentication**: Secure access control with Google OAuth
+- **Multiple Transports**: Support for both SSE and Streamable HTTP transports via [@vercel/mcp-adapter](https://github.com/vercel/mcp-adapter)
+- **API Compatibility**: REST API endpoints for direct HTTP access
+
+## MCP Tools
+
+This server provides the following MCP tools:
+
+- **`check_opportunity_zone`** - Check if coordinates or an address is in an opportunity zone
+- **`geocode_address`** - Convert an address to coordinates  
+- **`get_oz_status`** - Get opportunity zone service status and cache information
+- **`refresh_oz_data`** - Force refresh of opportunity zone data
+
+## API Endpoints
+
+For direct HTTP access, the following REST endpoints are available:
+
+- `POST /api/opportunity-zones/check` - Check if coordinates/address is in opportunity zone
+- `POST /api/opportunity-zones/geocode` - Geocode an address to coordinates
+- `GET /api/opportunity-zones/status` - Get service status and cache metrics
+- `GET /api/opportunity-zones/refresh` - Force refresh of opportunity zone data
 
 ## Using with
 
@@ -54,32 +80,70 @@ prisma generate
 npm run dev
 ```
 
-The very first time you will also need to run `prisma db push` to create the database tables.
+The very first time you will also need to run `prisma db push` to create the database tables, including the new opportunity zone and geocoding cache tables.
 
 ### Environment variables
 
 Required environment variables should be in `.env`: (not `.env.local` because Prisma doesn't support it)
 
 ```
+# Database (required for OAuth and caching)
 DATABASE_URL="postgresql://user:pass@server/database"
+
+# OAuth Authentication 
 AUTH_SECRET="any random string"
 GOOGLE_CLIENT_ID="a Google OAuth client ID"
 GOOGLE_CLIENT_SECRET="a Google OAuth client secret"
+
+# Redis (required for SSE transport)
 REDIS_URL="rediss://user:pass@host:6379"
+
+# Opportunity Zone Service
+GEOCODING_API_KEY="your-geocode-maps-co-api-key"
+OZ_DATA_URL="https://pub-757ceba6f52a4399beb76c4667a53f08.r2.dev/oz-all.geojson"
+
+# Optional: Custom app URL for OAuth redirect
+NEXTAUTH_URL="https://your-domain.com"
 ```
 
-`DATABASE_URL` is required for OAuth authentication to work, this is where sessions etc. live.
+**Required Variables:**
+- `DATABASE_URL` - PostgreSQL database for OAuth authentication and data caching
+- `AUTH_SECRET` - Random secret string for session encryption
+- `GOOGLE_CLIENT_ID` & `GOOGLE_CLIENT_SECRET` - Google OAuth credentials
+- `REDIS_URL` - Redis instance for SSE transport (Claude Desktop/Web support)
+- `GEOCODING_API_KEY` - API key for geocode.maps.co geocoding service
 
-`REDIS_URL` is required if you need SSE transport to work (i.e. you want to support Claude Desktop and Web).
+**Optional Variables:**
+- `OZ_DATA_URL` - URL for opportunity zone GeoJSON data (defaults to public R2 bucket)
+- `NEXTAUTH_URL` - Base URL for OAuth redirects (auto-detected in most cases)
 
 ## Architecture
 
-If you're using this as a template for your own Next.js app, the important parts are:
-* `/src/app/api/oauth/*` - these implement oauth client registration and token exchange
-* `/src/app/oauth/authorize/page.tsx` - this implements the oauth consent screen (it's extremely basic right now)
-* `/src/mcp/[transport]/route.ts` - this implements the MCP server itself. Your tools, resources, etc. should be defined here.
+Key components of this opportunity zone MCP server:
 
-To handle OAuth your app needs to be able to persist clients, access tokens, etc.. To do this it's using a PostgreSQL database accessed via Prisma. You can swap this for some other database if you want (it will be easiest if it's another Prisma-supported database).
+**MCP Server:**
+* `/src/app/mcp/[transport]/route.ts` - MCP server implementation with opportunity zone tools
+
+**Services:**
+* `/src/lib/services/opportunity-zones.ts` - Core opportunity zone lookup service with spatial indexing
+* `/src/lib/services/geocoding.ts` - Address geocoding service with caching
+
+**API Routes:**
+* `/src/app/api/opportunity-zones/*` - REST API endpoints for direct HTTP access
+* `/src/app/api/oauth/*` - OAuth client registration and token exchange
+* `/src/app/oauth/authorize/page.tsx` - OAuth consent screen
+
+**Authentication:**
+* `/src/app/auth.ts` - Auth.js authentication configuration (Google OAuth)
+
+**Database Models:**
+The app uses PostgreSQL with Prisma for:
+- OAuth authentication (clients, access tokens, auth codes)
+- Opportunity zone data caching (`OpportunityZoneCache` model)
+- Geocoding result caching (`GeocodingCache` model)
+- User sessions and accounts
+
+You can swap PostgreSQL for another Prisma-supported database if needed.
 
 You'll also notice:
 * `src/app/auth.ts` - this implements Auth.js authentication to your app itself. It's configured to use Google as a provider, but you can change it to use any other provider supports by Auth.js. This is not required for the MCP server to work, but it's a good idea to have it in place for your own app.
