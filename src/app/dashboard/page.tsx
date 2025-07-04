@@ -3,6 +3,7 @@ import { prisma } from '@/app/prisma';
 import { redirect } from 'next/navigation';
 import { randomBytes } from 'crypto';
 import Link from 'next/link';
+import DeleteClientButton from './components/DeleteClientButton';
 
 export default async function DashboardPage() {
   const session = await auth();
@@ -283,20 +284,7 @@ export default async function DashboardPage() {
                             Try API
                           </Link>
                         </div>
-                        <form action={deleteClient} className="inline">
-                          <input type="hidden" name="clientId" value={client.id} />
-                          <button
-                            type="submit"
-                            className="bg-red-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-red-700 transition-colors font-medium"
-                            onClick={(e) => {
-                              if (!confirm('Are you sure you want to delete this client? This will revoke all associated tokens.')) {
-                                e.preventDefault();
-                              }
-                            }}
-                          >
-                            Delete Client
-                          </button>
-                        </form>
+                        <DeleteClientButton clientId={client.id} clientName={client.name} onDelete={deleteClient} />
                       </div>
                     </div>
                   ))}
