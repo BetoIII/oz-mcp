@@ -41,7 +41,7 @@ export class OpportunityZoneService {
   private refreshInterval: NodeJS.Timeout | null = null
   private readonly REFRESH_INTERVAL = 24 * 60 * 60 * 1000 // 24 hours
   private readonly REFRESH_CHECK_INTERVAL = 5 * 60 * 1000 // 5 minutes
-  private readonly LOAD_TIMEOUT = 30000 // 30 seconds max for loading data
+  private readonly LOAD_TIMEOUT = 60000 // 60 seconds max for loading data (Vercel free tier limit)
 
   private constructor() {
     // Start the refresh check timer
@@ -83,7 +83,7 @@ export class OpportunityZoneService {
       
       // Rebuild the spatial index from cached data
       const spatialIndex = new RBush<RBushItem>()
-      spatialIndex.load(cached.spatialIndex as RBushItem[])
+      spatialIndex.load(cached.spatialIndex as unknown as RBushItem[])
 
       return {
         spatialIndex,
@@ -119,7 +119,7 @@ export class OpportunityZoneService {
           nextRefresh: cache.metadata.nextRefreshDue,
           dataHash: cache.metadata.dataHash || "",
           geoJsonData: cache.geoJson,
-          spatialIndex: spatialIndexData
+          spatialIndex: spatialIndexData as any
         }
       })
 

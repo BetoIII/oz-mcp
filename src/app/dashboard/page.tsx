@@ -47,19 +47,23 @@ export default async function DashboardPage() {
     }
 
     const name = formData.get('name') as string;
-    const redirectUris = formData.get('redirectUris') as string;
     
-    if (!name || !redirectUris) {
+    if (!name) {
       throw new Error('Missing required fields');
     }
 
-    const redirectUriList = redirectUris.split('\n').map(uri => uri.trim()).filter(uri => uri);
+    // Use default callback URLs for the OAuth flow
+    const defaultRedirectUris = [
+      `${process.env.NEXTAUTH_URL || 'https://oz-mcp.vercel.app'}/oauth/callback`,
+      'http://localhost:3000/callback'
+    ];
+    
     const clientSecret = randomBytes(32).toString('hex');
 
     await prisma.client.create({
       data: {
         name,
-        redirectUris: redirectUriList,
+        redirectUris: defaultRedirectUris,
         clientSecret,
         userId: session.user.id,
       },
@@ -123,6 +127,12 @@ export default async function DashboardPage() {
 
     redirect('/dashboard');
   }
+
+  // Determine the callback URL based on environment
+  const isProduction = process.env.NODE_ENV === 'production' || process.env.NEXTAUTH_URL?.includes('vercel.app');
+  const callbackUrl = isProduction 
+    ? `${process.env.NEXTAUTH_URL || 'https://oz-mcp.vercel.app'}/oauth/callback`
+    : 'http://localhost:3000/callback';
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
@@ -258,21 +268,24 @@ export default async function DashboardPage() {
                         </div>
                       </div>
                       
-                      <div className="mb-4">
-                        <p className="text-sm font-medium text-slate-700 mb-2">Redirect URIs</p>
-                        <div className="space-y-1">
-                          {client.redirectUris.map((uri, index) => (
-                            <div key={index} className="bg-white p-2 rounded-lg border border-slate-200">
-                              <code className="text-xs font-mono text-slate-600">{uri}</code>
-                            </div>
-                          ))}
+                      <div className="mb-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
+                        <div className="flex items-start space-x-2">
+                          <svg className="w-4 h-4 text-blue-600 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <div>
+                            <p className="text-sm font-medium text-blue-900">OAuth Callbacks</p>
+                            <p className="text-xs text-blue-700 mt-1">
+                              Redirect URIs are automatically configured for your application's OAuth flow.
+                            </p>
+                          </div>
                         </div>
                       </div>
                       
                       <div className="flex items-center justify-between pt-4 border-t border-slate-200">
                         <div className="flex space-x-3">
                           <Link
-                            href={`/oauth/authorize?client_id=${client.clientId}&redirect_uri=${encodeURIComponent(client.redirectUris[0])}&response_type=code&scope=api:read`}
+                            href={`/oauth/authorize?client_id=${client.clientId}&redirect_uri=${encodeURIComponent(callbackUrl)}&response_type=code&scope=api:read`}
                             className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 transition-colors font-medium"
                           >
                             Test OAuth Flow
@@ -309,25 +322,23 @@ export default async function DashboardPage() {
                     type="text"
                     name="name"
                     required
-                    className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 placeholder-slate-400"
                     placeholder="My Application"
                   />
                 </div>
                 
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Redirect URIs
-                  </label>
-                  <textarea
-                    name="redirectUris"
-                    required
-                    rows={3}
-                    className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="https://yourapp.com/callback"
-                  />
-                  <p className="text-sm text-slate-500 mt-1">
-                    One URI per line. Use HTTPS in production.
-                  </p>
+                <div className="bg-slate-50 rounded-lg p-4 border border-slate-200">
+                  <div className="flex items-start space-x-2">
+                    <svg className="w-4 h-4 text-slate-600 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <div>
+                      <p className="text-sm font-medium text-slate-700">OAuth Configuration</p>
+                      <p className="text-xs text-slate-500 mt-1">
+                        Redirect URIs are automatically configured for your OAuth flow. No manual setup required.
+                      </p>
+                    </div>
+                  </div>
                 </div>
                 
                 <button
