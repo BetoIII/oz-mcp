@@ -41,11 +41,32 @@ export class OpportunityZoneService {
   private refreshInterval: NodeJS.Timeout | null = null
   private readonly REFRESH_INTERVAL = 24 * 60 * 60 * 1000 // 24 hours
   private readonly REFRESH_CHECK_INTERVAL = 5 * 60 * 1000 // 5 minutes
-  private readonly LOAD_TIMEOUT = 60000 // 60 seconds max for loading data (Vercel free tier limit)
+  private readonly LOAD_TIMEOUT = 300000 // 5 minutes max for loading data (increased for seeding)
+  private readonly QUICK_LOAD_TIMEOUT = 60000 // 60 seconds for database loads (large dataset)
 
   private constructor() {
     // Start the refresh check timer
     this.startRefreshChecker()
+    // Try to load from database immediately (non-blocking)
+    this.quickInitialize()
+  }
+
+  /**
+   * Quick initialization - tries to load from database without blocking
+   */
+  private quickInitialize() {
+    this.loadFromDatabase()
+      .then((cachedData) => {
+        if (cachedData) {
+          this.cache = cachedData
+          console.log('[OpportunityZoneService] ✅ Quick initialization successful from database')
+        } else {
+          console.log('[OpportunityZoneService] ⚠️  No cached data found, will initialize on first request')
+        }
+      })
+      .catch((error) => {
+        console.log('[OpportunityZoneService] ⚠️  Quick initialization failed, will initialize on first request:', error.message)
+      })
   }
 
   static getInstance(): OpportunityZoneService {
@@ -65,25 +86,45 @@ export class OpportunityZoneService {
 
   private async loadFromDatabase(log: LogFn = defaultLog): Promise<CacheState | null> {
     try {
-      const cached = await prisma.opportunityZoneCache.findFirst({
+      log("info", "🔍 Checking database for cached opportunity zone data...")
+      
+      const startTime = Date.now()
+      
+      // Add timeout to database query with more generous timeout for large datasets
+      const queryPromise = prisma.opportunityZoneCache.findFirst({
         orderBy: { createdAt: 'desc' }
       })
 
+      const timeoutPromise = new Promise<null>((_, reject) => {
+        setTimeout(() => reject(new Error('Database query timeout')), this.QUICK_LOAD_TIMEOUT)
+      })
+
+      const cached = await Promise.race([queryPromise, timeoutPromise])
+      
+      const loadTime = Date.now() - startTime
+      log("info", `⏱️  Database query completed in ${loadTime}ms`)
+
       if (!cached) {
-        log("info", "No cached data found in database")
+        log("warning", "📦 No cached data found in database - database may need seeding")
         return null
       }
 
       if (new Date() >= cached.nextRefresh) {
-        log("info", "Cached data expired, needs refresh")
-        return null
+        log("info", "⏰ Cached data expired, will refresh in background")
+        // Don't return null immediately - use expired data and refresh in background
+        this.refresh(log).catch(error => {
+          log("error", `Background refresh failed: ${error.message}`)
+        })
       }
 
-      log("info", "Loading cached data from database")
+      log("info", `📦 Loading cached data from database (${cached.featureCount} features)`)
       
       // Rebuild the spatial index from cached data
+      const indexStartTime = Date.now()
       const spatialIndex = new RBush<RBushItem>()
       spatialIndex.load(cached.spatialIndex as unknown as RBushItem[])
+      const indexLoadTime = Date.now() - indexStartTime
+      log("info", `🗂️  Spatial index rebuilt in ${indexLoadTime}ms`)
 
       return {
         spatialIndex,
@@ -97,7 +138,13 @@ export class OpportunityZoneService {
         }
       }
     } catch (error) {
-      log("error", `Failed to load from database: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      if (errorMessage.includes('timeout')) {
+        log("error", `❌ Database timeout: Large dataset took >${this.QUICK_LOAD_TIMEOUT/1000}s to load`)
+        log("info", "💡 Consider optimizing data storage or increasing timeout if this persists")
+      } else {
+        log("error", `❌ Failed to load from database: ${errorMessage}`)
+      }
       return null
     }
   }
@@ -282,11 +329,13 @@ export class OpportunityZoneService {
   async initialize(log: LogFn = defaultLog): Promise<void> {
     // If already initialized with valid cache, return immediately
     if (this.cache && new Date() < this.cache.metadata.nextRefreshDue) {
+      log("info", "✅ Service already initialized with valid cache")
       return
     }
 
     // If initialization is in progress, wait for it
     if (this.isInitializing) {
+      log("info", "⏳ Initialization in progress, waiting...")
       return this.initPromise!
     }
 
@@ -294,6 +343,8 @@ export class OpportunityZoneService {
     
     this.initPromise = (async () => {
       try {
+        log("info", "🚀 Starting opportunity zone service initialization...")
+        
         // Try to load from database first
         const cachedData = await this.loadFromDatabase(log)
         if (cachedData) {
@@ -302,10 +353,26 @@ export class OpportunityZoneService {
           return
         }
 
+        // If no valid cache, try to provide helpful guidance
+        log("warning", "📦 No cached data found in database")
+        log("info", "💡 Consider running the seeding script: node scripts/seed-opportunity-zones.js")
+        log("info", "🔄 Attempting to download and cache data from external source...")
+        
         // If no valid cache, refresh from external source
         await this.refresh(log)
       } catch (error) {
-        log("error", `❌ Initialization failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+        log("error", `❌ Initialization failed: ${errorMessage}`)
+        
+        // Provide more helpful error messages
+        if (errorMessage.includes('timeout')) {
+          log("error", "💡 This error often occurs when the external data source is slow")
+          log("error", "💡 Consider pre-seeding the database with: node scripts/seed-opportunity-zones.js")
+        } else if (errorMessage.includes('fetch')) {
+          log("error", "💡 Network error accessing external data source")
+          log("error", "💡 Check your internet connection and try again")
+        }
+        
         throw error
       }
     })()
@@ -324,8 +391,20 @@ export class OpportunityZoneService {
 
     if (this.isInitializing) {
       // Don't wait for initialization, return false to use fallback
-      log("warning", "⏳ Data still loading, using fallback method")
+      log("warning", "⏳ Data still loading, please wait...")
       return false
+    }
+
+    // Try quick database load first
+    try {
+      const cachedData = await this.loadFromDatabase(log)
+      if (cachedData) {
+        this.cache = cachedData
+        log("success", "✅ Quick database load successful")
+        return true
+      }
+    } catch (error) {
+      log("warning", `⚠️  Quick database load failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
 
     // Start initialization in background but don't wait
@@ -376,8 +455,21 @@ export class OpportunityZoneService {
     }
 
     // Fallback: Service is still loading
-    log("info", "🔄 Opportunity zone data is still loading. Please try again in a few moments.")
-    throw new Error("Service is initializing. Please wait a moment and try again.")
+    log("info", "🔄 Opportunity zone data is still loading...")
+    
+    // If we're not initializing, start the process
+    if (!this.isInitializing) {
+      log("info", "🚀 Starting initialization process...")
+      this.initialize(log).catch(error => {
+        log("error", `Initialization failed: ${error.message}`)
+      })
+    }
+
+    // Provide helpful guidance
+    log("info", "💡 If this is the first startup, consider running: node scripts/seed-opportunity-zones.js")
+    log("info", "💡 This will pre-populate the database for faster startup times")
+    
+    throw new Error("Service is initializing. Please wait a moment and try again. Consider running the database seeding script for faster startup.")
   }
 
   // Public methods to get cache information
