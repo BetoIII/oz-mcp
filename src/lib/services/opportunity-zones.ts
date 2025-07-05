@@ -2,6 +2,7 @@ import RBush from 'rbush'
 import booleanPointInPolygon from '@turf/boolean-point-in-polygon'
 import { point } from '@turf/helpers'
 import { prisma } from '@/app/prisma'
+import { withRetry } from '@/lib/db-retry'
 
 // Type for the log function
 type LogFn = (type: "info" | "success" | "warning" | "error", message: string) => void;
@@ -90,16 +91,18 @@ export class OpportunityZoneService {
       
       const startTime = Date.now()
       
-      // Add timeout to database query with more generous timeout for large datasets
-      const queryPromise = prisma.opportunityZoneCache.findFirst({
-        orderBy: { createdAt: 'desc' }
-      })
+      // Add timeout to database query with more generous timeout for large datasets and retry logic
+      const cached = await withRetry(async () => {
+        const queryPromise = prisma.opportunityZoneCache.findFirst({
+          orderBy: { createdAt: 'desc' }
+        })
 
-      const timeoutPromise = new Promise<null>((_, reject) => {
-        setTimeout(() => reject(new Error('Database query timeout')), this.QUICK_LOAD_TIMEOUT)
-      })
+        const timeoutPromise = new Promise<null>((_, reject) => {
+          setTimeout(() => reject(new Error('Database query timeout')), this.QUICK_LOAD_TIMEOUT)
+        })
 
-      const cached = await Promise.race([queryPromise, timeoutPromise])
+        return await Promise.race([queryPromise, timeoutPromise])
+      })
       
       const loadTime = Date.now() - startTime
       log("info", `⏱️  Database query completed in ${loadTime}ms`)
@@ -154,20 +157,22 @@ export class OpportunityZoneService {
       // Convert spatial index to serializable format
       const spatialIndexData = cache.spatialIndex.all()
 
-      // Clear old cache entries (keep only the latest)
-      await prisma.opportunityZoneCache.deleteMany()
-
-      // Save new cache
-      await prisma.opportunityZoneCache.create({
-        data: {
-          version: cache.metadata.version,
-          lastUpdated: cache.metadata.lastUpdated,
-          featureCount: cache.metadata.featureCount,
-          nextRefresh: cache.metadata.nextRefreshDue,
-          dataHash: cache.metadata.dataHash || "",
-          geoJsonData: cache.geoJson,
-          spatialIndex: spatialIndexData as any
-        }
+      // Clear old cache entries and save new cache with retry logic
+      await withRetry(async () => {
+        return await prisma.$transaction([
+          prisma.opportunityZoneCache.deleteMany(),
+          prisma.opportunityZoneCache.create({
+            data: {
+              version: cache.metadata.version,
+              lastUpdated: cache.metadata.lastUpdated,
+              featureCount: cache.metadata.featureCount,
+              nextRefresh: cache.metadata.nextRefreshDue,
+              dataHash: cache.metadata.dataHash || "",
+              geoJsonData: cache.geoJson,
+              spatialIndex: spatialIndexData as any
+            }
+          })
+        ])
       })
 
       log("success", "Cache saved to database")
@@ -527,8 +532,10 @@ export class OpportunityZoneService {
     let dbMetrics = {}
     
     try {
-      const cached = await prisma.opportunityZoneCache.findFirst({
-        orderBy: { createdAt: 'desc' }
+      const cached = await withRetry(async () => {
+        return await prisma.opportunityZoneCache.findFirst({
+          orderBy: { createdAt: 'desc' }
+        })
       })
       
       if (cached) {

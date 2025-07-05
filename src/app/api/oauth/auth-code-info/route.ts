@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { prisma } from '@/app/prisma';
+import { withRetry } from '@/lib/db-retry';
 
 export async function POST(request: NextRequest) {
   try {
@@ -18,12 +19,14 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Find the authorization code in the database
-    const authCode = await prisma.authCode.findUnique({
-      where: { code },
-      include: {
-        client: true
-      }
+    // Find the authorization code in the database with retry logic
+    const authCode = await withRetry(async () => {
+      return await prisma.authCode.findUnique({
+        where: { code },
+        include: {
+          client: true
+        }
+      });
     });
 
     if (!authCode) {
@@ -63,7 +66,17 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('Error in auth-code-info endpoint:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { 
+    
+    // Provide more specific error messages for debugging
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (errorMessage.includes('Can\'t reach database server')) {
+      console.error('Database connection failed - the database may be sleeping or have connection issues');
+    }
+    
+    return NextResponse.json({ 
+      error: 'Internal server error',
+      ...(process.env.NODE_ENV === 'development' && { details: errorMessage })
+    }, { 
       status: 500,
       headers: {
         'Access-Control-Allow-Origin': '*',

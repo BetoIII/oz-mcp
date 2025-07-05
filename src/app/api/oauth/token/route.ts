@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { prisma } from '@/app/prisma';
 import { randomBytes } from 'crypto';
+import { withRetry } from '@/lib/db-retry';
 
 export async function POST(request: NextRequest) {
   // Handle CORS preflight requests
@@ -54,7 +55,10 @@ export async function POST(request: NextRequest) {
 
   try {
     console.log("Finding client for client_id:", client_id);
-    const client = await prisma.client.findUnique({ where: { clientId: client_id } });
+    const client = await withRetry(async () => {
+      return await prisma.client.findUnique({ where: { clientId: client_id } });
+    });
+    
     if (!client) {
       console.log("Invalid client.", { client_id });
       return NextResponse.json({ error: 'Invalid client' }, { 
@@ -68,7 +72,10 @@ export async function POST(request: NextRequest) {
     }
 
     console.log("Finding auth code:", code);
-    const authCode = await prisma.authCode.findUnique({ where: { code } });
+    const authCode = await withRetry(async () => {
+      return await prisma.authCode.findUnique({ where: { code } });
+    });
+    
     if (!authCode || authCode.clientId !== client.id || authCode.redirectUri !== redirect_uri) {
       console.log("Invalid code or redirect_uri mismatch.", { authCode, client_id: client.id, redirect_uri });
       return NextResponse.json({ error: 'Invalid code' }, { 
@@ -143,24 +150,26 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Delete the auth code so it can't be used again
-    console.log("Deleting auth code:", authCode.id);
-    await prisma.authCode.delete({ where: { id: authCode.id } });
-    console.log("Auth code deleted.");
-
+    // Delete the auth code so it can't be used again and create access token in a transaction
+    console.log("Deleting auth code and creating access token");
     const accessToken = randomBytes(32).toString('hex');
     const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
 
-    console.log("Creating access token for user:", authCode.userId);
-    await prisma.accessToken.create({
-      data: {
-        token: accessToken,
-        expiresAt,
-        clientId: client.id,
-        userId: authCode.userId,
-      },
+    await withRetry(async () => {
+      return await prisma.$transaction([
+        prisma.authCode.delete({ where: { id: authCode.id } }),
+        prisma.accessToken.create({
+          data: {
+            token: accessToken,
+            expiresAt,
+            clientId: client.id,
+            userId: authCode.userId,
+          },
+        })
+      ]);
     });
-    console.log("Access token created.");
+    
+    console.log("Auth code deleted and access token created.");
 
     return NextResponse.json({
       access_token: accessToken,
@@ -175,7 +184,17 @@ export async function POST(request: NextRequest) {
     });
   } catch (e) {
     console.error("Error in token endpoint:", e);
-    return NextResponse.json({ error: 'Server error' }, { 
+    
+    // Provide more specific error messages for debugging
+    const errorMessage = e instanceof Error ? e.message : 'Unknown error';
+    if (errorMessage.includes('Can\'t reach database server')) {
+      console.error('Database connection failed - the database may be sleeping or have connection issues');
+    }
+    
+    return NextResponse.json({ 
+      error: 'Server error',
+      ...(process.env.NODE_ENV === 'development' && { details: errorMessage })
+    }, { 
       status: 500,
       headers: {
         'Access-Control-Allow-Origin': '*',
