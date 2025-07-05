@@ -1,5 +1,5 @@
 const { PrismaClient } = require('../src/generated/prisma');
-const RBush = require('rbush');
+const RBush = require('rbush').default;
 const fetch = require('node-fetch');
 const crypto = require('crypto');
 const path = require('path');
