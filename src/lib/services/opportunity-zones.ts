@@ -42,7 +42,7 @@ export class OpportunityZoneService {
   private readonly REFRESH_INTERVAL = 24 * 60 * 60 * 1000 // 24 hours
   private readonly REFRESH_CHECK_INTERVAL = 5 * 60 * 1000 // 5 minutes
   private readonly LOAD_TIMEOUT = 300000 // 5 minutes max for loading data (increased for seeding)
-  private readonly QUICK_LOAD_TIMEOUT = 10000 // 10 seconds for quick database loads
+  private readonly QUICK_LOAD_TIMEOUT = 60000 // 60 seconds for database loads (large dataset)
 
   private constructor() {
     // Start the refresh check timer
@@ -88,7 +88,9 @@ export class OpportunityZoneService {
     try {
       log("info", "🔍 Checking database for cached opportunity zone data...")
       
-      // Add timeout to database query
+      const startTime = Date.now()
+      
+      // Add timeout to database query with more generous timeout for large datasets
       const queryPromise = prisma.opportunityZoneCache.findFirst({
         orderBy: { createdAt: 'desc' }
       })
@@ -98,6 +100,9 @@ export class OpportunityZoneService {
       })
 
       const cached = await Promise.race([queryPromise, timeoutPromise])
+      
+      const loadTime = Date.now() - startTime
+      log("info", `⏱️  Database query completed in ${loadTime}ms`)
 
       if (!cached) {
         log("warning", "📦 No cached data found in database - database may need seeding")
@@ -115,8 +120,11 @@ export class OpportunityZoneService {
       log("info", `📦 Loading cached data from database (${cached.featureCount} features)`)
       
       // Rebuild the spatial index from cached data
+      const indexStartTime = Date.now()
       const spatialIndex = new RBush<RBushItem>()
       spatialIndex.load(cached.spatialIndex as unknown as RBushItem[])
+      const indexLoadTime = Date.now() - indexStartTime
+      log("info", `🗂️  Spatial index rebuilt in ${indexLoadTime}ms`)
 
       return {
         spatialIndex,
@@ -130,7 +138,13 @@ export class OpportunityZoneService {
         }
       }
     } catch (error) {
-      log("error", `❌ Failed to load from database: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      if (errorMessage.includes('timeout')) {
+        log("error", `❌ Database timeout: Large dataset took >${this.QUICK_LOAD_TIMEOUT/1000}s to load`)
+        log("info", "💡 Consider optimizing data storage or increasing timeout if this persists")
+      } else {
+        log("error", `❌ Failed to load from database: ${errorMessage}`)
+      }
       return null
     }
   }
