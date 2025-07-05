@@ -7,6 +7,15 @@
     "build": "prisma generate && next build",
     "start": "next start",
     "lint": "next lint",
+    "seed": "node scripts/seed-opportunity-zones.js",
+    "seed:check": "node scripts/seed-opportunity-zones.js --check",
+    "seed:force": "node scripts/seed-opportunity-zones.js --force",
+    "preprocess": "node scripts/preprocess-opportunity-zones.js",
+    "preprocess:check": "node scripts/preprocess-opportunity-zones.js --check",
+    "preprocess:force": "node scripts/preprocess-opportunity-zones.js --force",
+    "optimize": "npm run preprocess && npm run seed",
+    "deploy:setup": "node scripts/deploy-setup.js",
+    "prebuild": "npm run deploy:setup",
     "postinstall": "prisma generate"
   },
   "dependencies": {
@@ -20,6 +29,7 @@
     "@vercel/mcp-adapter": "^0.11.1",
     "next": "15.3.4",
     "next-auth": "^5.0.0-beta.28",
+    "node-fetch": "^2.6.12",
     "prisma": "^6.10.1",
     "rbush": "^4.0.1",
     "react": "^19.0.0",
