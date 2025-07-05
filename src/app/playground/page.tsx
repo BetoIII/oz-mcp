@@ -130,6 +130,8 @@ export default function PlaygroundPage() {
         if (result.result?.content?.[0]?.text) {
           const statusText = result.result.content[0].text;
           const isInitialized = statusText.includes('Initialized: ✅ Yes');
+          const cacheLoaded = statusText.includes('Cache loaded: ✅ Yes');
+          const dbHasData = statusText.includes('Database has data: ✅ Yes');
           const featureMatch = statusText.match(/Feature count: (\d+)/);
           const featureCount = featureMatch ? parseInt(featureMatch[1]) : 0;
           const lastUpdatedMatch = statusText.match(/Last updated: ([^\n]+)/);
@@ -141,11 +143,57 @@ export default function PlaygroundPage() {
             lastUpdated,
             isLoading: false
           });
+
+          // If database has data but cache isn't loaded, try to trigger cache loading
+          if (dbHasData && !cacheLoaded && !isInitialized) {
+            console.log('Database has data but cache not loaded, attempting to trigger cache loading...');
+            // Try a simple check request to force cache loading
+            setTimeout(() => {
+              triggerCacheLoading();
+            }, 2000);
+          }
         }
       }
     } catch (error) {
       console.error('Error checking service status:', error);
       setServiceStatus(prev => ({ ...prev, isLoading: false }));
+    }
+  };
+
+  // Function to trigger cache loading by making a simple check request
+  const triggerCacheLoading = async () => {
+    if (!accessToken) return;
+    
+    try {
+      console.log('Triggering cache loading with simple check request...');
+      const requestBody = {
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: {
+          name: 'check_opportunity_zone',
+          arguments: {
+            latitude: '38.8977',
+            longitude: '-77.0365'
+          },
+        },
+      };
+
+      await fetch('/api/mcp', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      // Check status again after a short delay
+      setTimeout(() => {
+        checkServiceStatus();
+      }, 3000);
+    } catch (error) {
+      console.log('Cache loading trigger failed:', error);
     }
   };
 

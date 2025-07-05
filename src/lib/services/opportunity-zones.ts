@@ -65,7 +65,7 @@ export class OpportunityZoneService {
         }
       })
       .catch((error) => {
-        console.log('[OpportunityZoneService] ⚠️  Quick initialization failed, will initialize on first request:', error.message)
+        console.log('[OpportunityZoneService] ⚠️  Quick initialization failed, will initialize on first request:', error instanceof Error ? error.message : 'Unknown error')
       })
   }
 
@@ -492,6 +492,64 @@ export class OpportunityZoneService {
       featureCount: this.cache?.metadata.featureCount,
       version: this.cache?.metadata.version,
       dataHash: this.cache?.metadata.dataHash
+    }
+  }
+
+  /**
+   * Get comprehensive cache metrics including database check
+   */
+  async getCacheMetricsWithDbCheck(): Promise<{
+    isInitialized: boolean
+    isInitializing: boolean
+    lastUpdated?: Date
+    nextRefreshDue?: Date
+    featureCount?: number
+    version?: string
+    dataHash?: string
+    dbHasData?: boolean
+  }> {
+    // If we have cache, return it
+    if (this.cache) {
+      return {
+        isInitialized: true,
+        isInitializing: this.isInitializing,
+        lastUpdated: this.cache.metadata.lastUpdated,
+        nextRefreshDue: this.cache.metadata.nextRefreshDue,
+        featureCount: this.cache.metadata.featureCount,
+        version: this.cache.metadata.version,
+        dataHash: this.cache.metadata.dataHash,
+        dbHasData: true
+      }
+    }
+
+    // If no cache, check database
+    let dbHasData = false
+    let dbMetrics = {}
+    
+    try {
+      const cached = await prisma.opportunityZoneCache.findFirst({
+        orderBy: { createdAt: 'desc' }
+      })
+      
+      if (cached) {
+        dbHasData = true
+        dbMetrics = {
+          lastUpdated: cached.lastUpdated,
+          nextRefreshDue: cached.nextRefresh,
+          featureCount: cached.featureCount,
+          version: cached.version,
+          dataHash: cached.dataHash
+        }
+      }
+    } catch (error) {
+      console.log('[OpportunityZoneService] Error checking database:', error instanceof Error ? error.message : 'Unknown error')
+    }
+
+    return {
+      isInitialized: false,
+      isInitializing: this.isInitializing,
+      dbHasData,
+      ...dbMetrics
     }
   }
 
