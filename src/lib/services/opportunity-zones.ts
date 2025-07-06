@@ -2,6 +2,7 @@ import RBush from 'rbush'
 import booleanPointInPolygon from '@turf/boolean-point-in-polygon'
 import { point } from '@turf/helpers'
 import { prisma } from '@/app/prisma'
+import { PostGISOpportunityZoneService } from './postgis-opportunity-zones'
 
 // Type for the log function
 type LogFn = (type: "info" | "success" | "warning" | "error", message: string) => void;
@@ -43,8 +44,12 @@ export class OpportunityZoneService {
   private readonly REFRESH_CHECK_INTERVAL = 5 * 60 * 1000 // 5 minutes
   private readonly LOAD_TIMEOUT = 300000 // 5 minutes max for loading data (increased for seeding)
   private readonly QUICK_LOAD_TIMEOUT = 60000 // 60 seconds for database loads (large dataset)
+  
+  // PostGIS integration
+  private postGISService: PostGISOpportunityZoneService
 
   private constructor() {
+    this.postGISService = PostGISOpportunityZoneService.getInstance()
     // Start the refresh check timer
     this.startRefreshChecker()
     // Try to load from database immediately (non-blocking)
@@ -418,8 +423,37 @@ export class OpportunityZoneService {
   async checkPoint(lat: number, lon: number, log: LogFn = defaultLog): Promise<{
     isInZone: boolean,
     zoneId?: string,
-    metadata: SpatialIndexMetadata
+    metadata: SpatialIndexMetadata,
+    method?: 'postgis' | 'rbush' | 'fallback'
   }> {
+    // Priority 1 & 2: Try PostGIS optimization first
+    try {
+      log("info", "🚀 Attempting PostGIS-optimized query...")
+      const postGISResult = await this.postGISService.checkPointFast(lat, lon, log)
+      
+      if (postGISResult.method === 'postgis') {
+        log("success", `⚡ PostGIS query completed - method: ${postGISResult.method}`)
+        const metadata = await this.postGISService.getMetadata(log)
+        
+        return {
+          isInZone: postGISResult.isInZone,
+          zoneId: postGISResult.zoneId,
+          metadata: {
+            version: metadata.lastUpdated.toISOString(),
+            lastUpdated: metadata.lastUpdated,
+            featureCount: metadata.featureCount,
+            nextRefreshDue: new Date(Date.now() + this.REFRESH_INTERVAL)
+          },
+          method: 'postgis'
+        }
+      }
+    } catch (error) {
+      log("warning", `⚠️  PostGIS query failed, falling back to R-Bush: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
+
+    // Fallback to traditional R-Bush approach
+    log("info", "🔄 Using traditional R-Bush spatial index...")
+    
     // Try quick initialization (non-blocking)
     const hasCache = await this.tryQuickInitialize(log)
     
@@ -443,14 +477,16 @@ export class OpportunityZoneService {
           return {
             isInZone: true,
             zoneId: item.feature.properties?.GEOID,
-            metadata: this.cache.metadata
+            metadata: this.cache.metadata,
+            method: 'rbush'
           }
         }
       }
       
       return {
         isInZone: false,
-        metadata: this.cache.metadata
+        metadata: this.cache.metadata,
+        method: 'rbush'
       }
     }
 
@@ -466,10 +502,10 @@ export class OpportunityZoneService {
     }
 
     // Provide helpful guidance
-    log("info", "💡 If this is the first startup, consider running: node scripts/seed-opportunity-zones.js")
-    log("info", "💡 This will pre-populate the database for faster startup times")
+    log("info", "💡 For faster startup, consider running PostGIS optimization:")
+    log("info", "💡   node scripts/seed-opportunity-zones-postgis.js --force")
     
-    throw new Error("Service is initializing. Please wait a moment and try again. Consider running the database seeding script for faster startup.")
+    throw new Error("Service is initializing. Please wait a moment and try again. Consider running the PostGIS optimization script for faster startup.")
   }
 
   // Public methods to get cache information
@@ -550,6 +586,36 @@ export class OpportunityZoneService {
       isInitializing: this.isInitializing,
       dbHasData,
       ...dbMetrics
+    }
+  }
+
+  async getCacheMetricsEnhanced(): Promise<{
+    isInitialized: boolean
+    isInitializing: boolean
+    lastUpdated?: Date
+    nextRefreshDue?: Date
+    featureCount?: number
+    version?: string
+    dataHash?: string
+    dbHasData?: boolean
+    postGISEnabled?: boolean
+    postGISStats?: any
+  }> {
+    const basicMetrics = await this.getCacheMetricsWithDbCheck()
+    
+    try {
+      const postGISMetadata = await this.postGISService.getMetadata(() => {})
+      
+      return {
+        ...basicMetrics,
+        postGISEnabled: postGISMetadata.isPostGISEnabled,
+        postGISStats: postGISMetadata.optimizationStats
+      }
+    } catch (error) {
+      return {
+        ...basicMetrics,
+        postGISEnabled: false
+      }
     }
   }
 

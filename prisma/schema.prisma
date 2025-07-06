@@ -98,6 +98,28 @@ model AuthCode {
   createdAt DateTime @default(now())
 }
 
+model OpportunityZone {
+  id              String   @id @default(cuid())
+  geoid           String   @unique
+  
+  // Original geometry for precise operations
+  originalGeom    Unsupported("geometry(MULTIPOLYGON, 4326)")
+  
+  // Simplified geometry for fast queries (simplified with tolerance 0.001)
+  simplifiedGeom  Unsupported("geometry(MULTIPOLYGON, 4326)")
+  
+  // Pre-computed bounding box for ultra-fast filtering
+  bbox            Unsupported("geometry(POLYGON, 4326)")
+  
+  // Metadata
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@index([simplifiedGeom], name: "idx_oz_simplified_geom", type: Gist)
+  @@index([bbox], name: "idx_oz_bbox", type: Gist)
+  @@index([geoid])
+}
+
 model OpportunityZoneCache {
   id            String    @id @default(cuid())
   version       String
