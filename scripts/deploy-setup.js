@@ -9,6 +9,26 @@ const { OpportunityZoneSeeder } = require('./seed-opportunity-zones');
 async function deploySetup() {
   console.log('🚀 Starting deployment setup...');
   
+  // Skip seeding during build phase to prevent OOM errors
+  // Multiple conditions to reliably detect build environment
+  const isVercelBuild = process.env.VERCEL === '1' && !process.env.VERCEL_ENV;
+  const isBuildPhase = process.env.NODE_ENV !== 'production' && process.env.VERCEL_ENV === undefined;
+  const explicitSkip = process.env.SKIP_SEEDING === 'true';
+  
+  const skipSeeding = explicitSkip || isVercelBuild || isBuildPhase;
+  
+  if (skipSeeding) {
+    console.log('⏭️  Skipping seeding during build phase to prevent memory issues');
+    console.log('📝 Database will be seeded on first request if needed');
+    console.log('🔧 Build environment detected:', {
+      VERCEL: process.env.VERCEL,
+      VERCEL_ENV: process.env.VERCEL_ENV,
+      NODE_ENV: process.env.NODE_ENV,
+      SKIP_SEEDING: process.env.SKIP_SEEDING
+    });
+    return;
+  }
+  
   const seeder = new OpportunityZoneSeeder();
   
   try {
