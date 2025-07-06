@@ -7,9 +7,6 @@ export async function GET() {
     const service = OpportunityZoneService.getInstance()
     const postGISService = PostGISOpportunityZoneService.getInstance()
     
-    // Get comprehensive metrics
-    const metrics = await service.getCacheMetricsEnhanced()
-    
     // Get PostGIS-specific information
     const postGISMetadata = await postGISService.getMetadata()
     
@@ -17,27 +14,30 @@ export async function GET() {
     const systemStatus = {
       overall: 'healthy',
       recommendations: [] as string[],
-      optimizationLevel: 'basic'
+      optimizationLevel: 'advanced'
     }
     
     if (postGISMetadata.isPostGISEnabled && postGISMetadata.featureCount > 0) {
       systemStatus.optimizationLevel = 'advanced'
       systemStatus.recommendations.push('✅ PostGIS optimization is active - excellent performance expected')
-    } else if (metrics.isInitialized) {
-      systemStatus.optimizationLevel = 'basic'
-      systemStatus.recommendations.push('💡 Consider running PostGIS optimization: node scripts/seed-opportunity-zones-postgis.js --force')
+    } else if (postGISMetadata.isPostGISEnabled) {
+      systemStatus.overall = 'needs_setup'
+      systemStatus.recommendations.push('🔧 PostGIS enabled but no data found - run seeding script')
+      systemStatus.recommendations.push('💡 Run: node scripts/seed-opportunity-zones-postgis.js --force')
     } else {
       systemStatus.overall = 'needs_setup'
-      systemStatus.recommendations.push('🔧 Database needs initialization - run seeding script')
+      systemStatus.recommendations.push('🔧 PostGIS not enabled - run migration and seeding')
+      systemStatus.recommendations.push('💡 First run: npx prisma migrate dev --name enable_postgis')
+      systemStatus.recommendations.push('💡 Then run: node scripts/seed-opportunity-zones-postgis.js --force')
     }
     
     // Performance expectations
     const performanceExpectations = {
-      expectedQueryTime: postGISMetadata.isPostGISEnabled ? '<100ms' : '100-1000ms',
-      scalability: postGISMetadata.isPostGISEnabled ? 'High - can handle 10x more concurrent queries' : 'Moderate - in-memory cache limited',
+      expectedQueryTime: postGISMetadata.isPostGISEnabled && postGISMetadata.featureCount > 0 ? '<100ms' : 'Service unavailable',
+      scalability: postGISMetadata.isPostGISEnabled ? 'High - optimized for production workloads' : 'Not available',
       storageEfficiency: postGISMetadata.optimizationStats ? 
         `${postGISMetadata.optimizationStats.compressionRatio.toFixed(1)}% geometry compression` : 
-        'No compression - full geometry storage'
+        'No optimization available'
     }
     
     const response = {
@@ -45,18 +45,6 @@ export async function GET() {
       timestamp: new Date().toISOString(),
       system: systemStatus,
       performance: performanceExpectations,
-      
-      // Traditional cache metrics
-      traditional: {
-        isInitialized: metrics.isInitialized,
-        isInitializing: metrics.isInitializing,
-        lastUpdated: metrics.lastUpdated,
-        nextRefreshDue: metrics.nextRefreshDue,
-        featureCount: metrics.featureCount,
-        version: metrics.version,
-        dataHash: metrics.dataHash?.substring(0, 8) + '...',
-        dbHasData: metrics.dbHasData
-      },
       
       // PostGIS optimization metrics
       postgis: {
@@ -76,7 +64,7 @@ export async function GET() {
       quickActions: {
         enableOptimization: {
           command: 'node scripts/seed-opportunity-zones-postgis.js --force',
-          description: 'Enable PostGIS optimization for 50-100x performance improvement'
+          description: 'Enable PostGIS optimization for optimal performance'
         },
         checkSetup: {
           command: 'node scripts/seed-opportunity-zones-postgis.js --setup-check',
@@ -94,22 +82,24 @@ export async function GET() {
       
       // Technical details
       technical: {
+        architecture: 'PostGIS-only (simplified)',
         priorityImplementations: {
           priority1: {
             name: 'Hybrid Approach with Geometry Simplification',
-            status: postGISMetadata.isPostGISEnabled ? 'Active' : 'Available',
+            status: postGISMetadata.isPostGISEnabled && postGISMetadata.featureCount > 0 ? 'Active' : 'Not Available',
             description: 'Store simplified OZ polygons using ST_Simplify with 0.001 tolerance'
           },
           priority2: {
             name: 'Two-Stage Bounding Box Pre-filtering',
-            status: postGISMetadata.isPostGISEnabled ? 'Active' : 'Available',
+            status: postGISMetadata.isPostGISEnabled && postGISMetadata.featureCount > 0 ? 'Active' : 'Not Available',
             description: 'Fast bounding box check followed by precise containment'
           }
         },
         databaseFeatures: {
           postGISExtension: postGISMetadata.isPostGISEnabled ? 'Enabled' : 'Disabled',
           spatialIndexes: postGISMetadata.featureCount > 0 ? 'Active (GIST indexes)' : 'Not configured',
-          geometryTypes: postGISMetadata.featureCount > 0 ? 'Original + Simplified + BBox' : 'N/A'
+          geometryTypes: postGISMetadata.featureCount > 0 ? 'Original + Simplified + BBox' : 'N/A',
+          traditionalCache: 'Removed (PostGIS-only architecture)'
         }
       }
     }
@@ -131,7 +121,9 @@ export async function GET() {
         ],
         quickFixes: [
           'Check database connection',
+          'Run: npx prisma migrate dev --name enable_postgis',
           'Run: node scripts/seed-opportunity-zones-postgis.js --setup-check',
+          'Run: node scripts/seed-opportunity-zones-postgis.js --force',
           'Verify DATABASE_URL environment variable'
         ]
       }

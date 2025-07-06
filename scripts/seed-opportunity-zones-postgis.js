@@ -89,10 +89,6 @@ class PostGISOpportunityZoneSeeder extends OpportunityZoneSeeder {
         this.log('info', `   💾 Estimated storage savings: ~${(stats.compressionRatio * 0.6).toFixed(1)}%`);
       }
 
-      // Also seed the traditional cache for fallback compatibility
-      this.log('info', '🔄 Creating fallback cache for compatibility...');
-      await this.seedTraditionalCache(geoJson);
-
       this.log('success', '✅ PostGIS-optimized seeding complete!');
       this.log('info', '🚀 Your database is now optimized for sub-second queries!');
       
@@ -102,48 +98,7 @@ class PostGISOpportunityZoneSeeder extends OpportunityZoneSeeder {
     }
   }
 
-  async seedTraditionalCache(geoJson) {
-    try {
-      // Calculate data hash
-      const dataHash = await this.calculateDataHash(geoJson);
-      
-      // Check if we already have this data
-      const existing = await prisma.opportunityZoneCache.findFirst({
-        where: { dataHash },
-        orderBy: { createdAt: 'desc' }
-      });
 
-      if (existing) {
-        this.log('info', '📦 Traditional cache already exists with same hash');
-        return;
-      }
-
-      // Create spatial index (for fallback compatibility)
-      this.log('info', '🗂️  Creating spatial index for fallback...');
-      const spatialIndex = this.createSpatialIndex(geoJson);
-      const spatialIndexData = spatialIndex.all();
-
-      // Clear old cache entries
-      await prisma.opportunityZoneCache.deleteMany();
-
-      // Save new cache
-      await prisma.opportunityZoneCache.create({
-        data: {
-          version: new Date().toISOString(),
-          lastUpdated: new Date(),
-          featureCount: geoJson.features.length,
-          nextRefresh: new Date(Date.now() + this.REFRESH_INTERVAL),
-          dataHash,
-          geoJsonData: geoJson,
-          spatialIndex: spatialIndexData
-        }
-      });
-
-      this.log('success', '✅ Traditional cache created for fallback compatibility');
-    } catch (error) {
-      this.log('warning', `⚠️  Failed to create traditional cache: ${error.message}`);
-    }
-  }
 
   async performBenchmark() {
     this.log('info', '🔬 Starting performance benchmark...');
@@ -185,10 +140,7 @@ class PostGISOpportunityZoneSeeder extends OpportunityZoneSeeder {
 
   async checkDatabaseHealth() {
     try {
-      // Check traditional cache
-      const traditionalHealthy = await super.checkDatabaseHealth();
-      
-      // Check PostGIS optimization
+      // Check PostGIS optimization only
       const metadata = await this.getMetadata();
       
       if (metadata.isPostGISEnabled && metadata.featureCount > 0) {
@@ -201,7 +153,7 @@ class PostGISOpportunityZoneSeeder extends OpportunityZoneSeeder {
         return true;
       } else {
         this.log('warning', '⚠️  PostGIS optimization not active');
-        return traditionalHealthy;
+        return false;
       }
     } catch (error) {
       this.log('error', `❌ Health check failed: ${error.message}`);
