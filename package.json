@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && next build",
+    "build": "next build",
     "start": "next start",
     "lint": "next lint",
     "seed": "node scripts/seed-opportunity-zones.js",
@@ -15,7 +15,6 @@
     "preprocess:force": "node scripts/preprocess-opportunity-zones.js --force",
     "optimize": "npm run preprocess && npm run seed",
     "deploy:setup": "node scripts/deploy-setup.js",
-    "prebuild": "npm run deploy:setup",
     "postinstall": "prisma generate"
   },
   "dependencies": {
