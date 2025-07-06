@@ -138,6 +138,13 @@ class OpportunityZoneSeeder {
       
       // Check if we already have this data
       const existing = await prisma.opportunityZoneCache.findFirst({
+        select: {
+          id: true,
+          version: true,
+          dataHash: true,
+          featureCount: true,
+          createdAt: true
+        },
         where: { dataHash },
         orderBy: { createdAt: 'desc' }
       });
@@ -181,6 +188,15 @@ class OpportunityZoneSeeder {
   async checkDatabaseHealth() {
     try {
       const cacheEntry = await prisma.opportunityZoneCache.findFirst({
+        select: {
+          id: true,
+          version: true,
+          lastUpdated: true,
+          featureCount: true,
+          nextRefresh: true,
+          dataHash: true,
+          createdAt: true
+        },
         orderBy: { createdAt: 'desc' }
       });
 

@@ -91,9 +91,19 @@ export class OpportunityZoneService {
       
       const startTime = Date.now()
       
-      // Add timeout to database query with more generous timeout for large datasets and retry logic
+      // First, check if we have any cached data (metadata only)
       const cached = await withRetry(async () => {
         const queryPromise = prisma.opportunityZoneCache.findFirst({
+          select: {
+            id: true,
+            version: true,
+            lastUpdated: true,
+            featureCount: true,
+            nextRefresh: true,
+            dataHash: true,
+            createdAt: true,
+            updatedAt: true
+          },
           orderBy: { createdAt: 'desc' }
         })
 
@@ -105,7 +115,7 @@ export class OpportunityZoneService {
       })
       
       const loadTime = Date.now() - startTime
-      log("info", `⏱️  Database query completed in ${loadTime}ms`)
+      log("info", `⏱️  Database metadata query completed in ${loadTime}ms`)
 
       if (!cached) {
         log("warning", "📦 No cached data found in database - database may need seeding")
@@ -122,16 +132,42 @@ export class OpportunityZoneService {
 
       log("info", `📦 Loading cached data from database (${cached.featureCount} features)`)
       
+      // Now load the large data fields separately
+      const dataStartTime = Date.now()
+      const fullCached = await withRetry(async () => {
+        const queryPromise = prisma.opportunityZoneCache.findFirst({
+          select: {
+            geoJsonData: true,
+            spatialIndex: true
+          },
+          where: { id: cached.id }
+        })
+
+        const timeoutPromise = new Promise<null>((_, reject) => {
+          setTimeout(() => reject(new Error('Database large data query timeout')), this.QUICK_LOAD_TIMEOUT * 2) // Double timeout for large data
+        })
+
+        return await Promise.race([queryPromise, timeoutPromise])
+      })
+      
+      const dataLoadTime = Date.now() - dataStartTime
+      log("info", `⏱️  Database large data query completed in ${dataLoadTime}ms`)
+
+      if (!fullCached) {
+        log("error", "❌ Failed to load large data fields from database")
+        return null
+      }
+      
       // Rebuild the spatial index from cached data
       const indexStartTime = Date.now()
       const spatialIndex = new RBush<RBushItem>()
-      spatialIndex.load(cached.spatialIndex as unknown as RBushItem[])
+      spatialIndex.load(fullCached.spatialIndex as unknown as RBushItem[])
       const indexLoadTime = Date.now() - indexStartTime
       log("info", `🗂️  Spatial index rebuilt in ${indexLoadTime}ms`)
 
       return {
         spatialIndex,
-        geoJson: cached.geoJsonData,
+        geoJson: fullCached.geoJsonData,
         metadata: {
           version: cached.version,
           lastUpdated: cached.lastUpdated,
@@ -145,6 +181,9 @@ export class OpportunityZoneService {
       if (errorMessage.includes('timeout')) {
         log("error", `❌ Database timeout: Large dataset took >${this.QUICK_LOAD_TIMEOUT/1000}s to load`)
         log("info", "💡 Consider optimizing data storage or increasing timeout if this persists")
+      } else if (errorMessage.includes('too large')) {
+        log("error", `❌ Database response too large: ${errorMessage}`)
+        log("info", "💡 Consider implementing data chunking or compression")
       } else {
         log("error", `❌ Failed to load from database: ${errorMessage}`)
       }
@@ -534,6 +573,15 @@ export class OpportunityZoneService {
     try {
       const cached = await withRetry(async () => {
         return await prisma.opportunityZoneCache.findFirst({
+          select: {
+            version: true,
+            lastUpdated: true,
+            featureCount: true,
+            nextRefresh: true,
+            dataHash: true,
+            createdAt: true,
+            updatedAt: true
+          },
           orderBy: { createdAt: 'desc' }
         })
       })
