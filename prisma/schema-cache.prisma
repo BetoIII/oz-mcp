@@ -5,7 +5,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("CACHE_STORAGE_PRISMA_DATABASE_URL")
+  url      = env("CACHE_STORAGE_POSTGRES_URL")
 }
 
 model OpportunityZoneCache {

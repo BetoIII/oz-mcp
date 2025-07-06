@@ -5,7 +5,7 @@ import { PrismaClient } from '@/generated/prisma-cache';
 const prismaCache = global.prismaCache || new PrismaClient({
   datasources: {
     db: {
-      url: process.env.CACHE_STORAGE_PRISMA_DATABASE_URL,
+      url: process.env.CACHE_STORAGE_POSTGRES_URL,
     },
   },
   ...(process.env.NODE_ENV === 'production' && {

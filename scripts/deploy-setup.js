@@ -36,6 +36,8 @@ async function deploySetup() {
       console.error('💡 Database connection issue - check your DATABASE_URL environment variable');
     } else if (error.message.includes('fetch')) {
       console.error('💡 Network error - check your internet connection and data source URL');
+    } else if (error.message.includes('connection closed')) {
+      console.error('💡 Database connection was closed - this may happen with large datasets');
     }
     
     console.error('');
@@ -45,13 +47,10 @@ async function deploySetup() {
     console.error('For preprocessed data, run:');
     console.error('  npm run optimize');
     
-    // Don't exit with error in production builds - app can still work with fallback
-    if (process.env.NODE_ENV === 'production') {
-      console.warn('⚠️  Production build continuing without seeded data');
-      console.warn('⚠️  App will attempt to download data on first request');
-    } else {
-      process.exit(1);
-    }
+    // Always continue with production builds - app can work without seeded data
+    console.warn('⚠️  Production build continuing without seeded data');
+    console.warn('⚠️  App will attempt to download and cache data on first request');
+    
   } finally {
     await seeder.cleanup();
   }

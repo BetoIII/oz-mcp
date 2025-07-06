@@ -21,6 +21,28 @@ export interface SpatialIndexMetadata {
   dataHash?: string
 }
 
+export interface CacheInfo {
+  id: string
+  version: string
+  lastUpdated: Date
+  featureCount: number
+  nextRefresh: Date
+  dataHash: string
+  createdAt: Date
+}
+
+export interface ServiceStatus {
+  isReady: boolean
+  isInitializing: boolean
+  lastUpdated: Date | null
+  featureCount: number
+  nextRefresh: Date | null
+  dataHash: string | null
+  version: string | null
+  hasCache: boolean
+  cacheExpired: boolean
+}
+
 export interface RBushItem {
   minX: number
   minY: number
@@ -56,20 +78,86 @@ export class OpportunityZoneService {
 
   /**
    * Quick initialization - tries to load from database without blocking
+   * If cache database is empty, triggers seeding in background
    */
   private quickInitialize() {
     this.loadFromDatabase()
       .then((cachedData) => {
         if (cachedData) {
           this.cache = cachedData
-          console.log('[OpportunityZoneService] ✅ Quick initialization successful from database')
+          console.log('[OpportunityZoneService] ✅ Quick initialization successful from cache database')
         } else {
-          console.log('[OpportunityZoneService] ⚠️  No cached data found, will initialize on first request')
+          console.log('[OpportunityZoneService] ⚠️  No cached data found in cache database')
+          console.log('[OpportunityZoneService] 🌱 Attempting to seed cache database in background...')
+          
+          // Don't block startup - seed in background
+          this.seedCacheDatabase()
+            .then(() => {
+              console.log('[OpportunityZoneService] ✅ Cache database seeding completed, reloading...')
+              return this.loadFromDatabase()
+            })
+            .then((seededData) => {
+              if (seededData) {
+                this.cache = seededData
+                console.log('[OpportunityZoneService] ✅ Cache loaded after seeding')
+              } else {
+                console.log('[OpportunityZoneService] ⚠️  Cache still empty after seeding attempt')
+              }
+            })
+            .catch((error) => {
+              console.log('[OpportunityZoneService] ⚠️  Cache database seeding failed:', error instanceof Error ? error.message : 'Unknown error')
+              console.log('[OpportunityZoneService] 💡 Service will continue to work but may be slower on first requests')
+              console.log('[OpportunityZoneService] 💡 Consider running: node scripts/seed-opportunity-zones.js')
+            })
         }
       })
       .catch((error) => {
-        console.log('[OpportunityZoneService] ⚠️  Quick initialization failed, will initialize on first request:', error instanceof Error ? error.message : 'Unknown error')
+        console.log('[OpportunityZoneService] ⚠️  Quick initialization failed:', error instanceof Error ? error.message : 'Unknown error')
+        console.log('[OpportunityZoneService] 💡 Service will attempt to initialize on first request')
       })
+  }
+
+  /**
+   * Trigger seeding of the cache database
+   */
+  private async seedCacheDatabase(): Promise<void> {
+    try {
+      const { spawn } = require('child_process')
+      
+      return new Promise<void>((resolve, reject) => {
+        const seedProcess = spawn('node', ['scripts/seed-opportunity-zones.js'], {
+          stdio: 'pipe',
+          cwd: process.cwd()
+        })
+
+        let output = ''
+        let errorOutput = ''
+
+        seedProcess.stdout.on('data', (data: Buffer) => {
+          output += data.toString()
+        })
+
+        seedProcess.stderr.on('data', (data: Buffer) => {
+          errorOutput += data.toString()
+        })
+
+        seedProcess.on('close', (code: number | null) => {
+          if (code === 0) {
+            console.log('[OpportunityZoneService] Seeding output:', output)
+            resolve()
+          } else {
+            console.error('[OpportunityZoneService] Seeding failed:', errorOutput)
+            reject(new Error(`Seeding process exited with code ${code}: ${errorOutput}`))
+          }
+        })
+
+        seedProcess.on('error', (error: Error) => {
+          reject(error)
+        })
+      })
+    } catch (error) {
+      throw new Error(`Failed to start seeding process: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
   }
 
   static getInstance(): OpportunityZoneService {
@@ -89,7 +177,7 @@ export class OpportunityZoneService {
 
   private async loadFromDatabase(log: LogFn = defaultLog): Promise<CacheState | null> {
     try {
-      log("info", "� Loading opportunity zones from cache database...")
+      log("info", "📦 Loading opportunity zones from cache database...")
       
       const queryPromise = prismaCache.opportunityZoneCache.findFirst({
         select: {
@@ -118,7 +206,7 @@ export class OpportunityZoneService {
         return null
       }
 
-      log("info", `� Found cache entry with ${result.featureCount} features`)
+      log("info", `📊 Found cache entry with ${result.featureCount} features`)
       
       // Check if data is expired
       const now = new Date()
@@ -127,6 +215,9 @@ export class OpportunityZoneService {
       if (isExpired) {
         log("warning", "⚠️  Cache entry is expired, will refresh in background")
         // Don't return null here - we'll use expired data and refresh in background
+        this.refresh(log).catch(error => {
+          log("error", `Background refresh failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+        })
       }
 
       // Check if the data is too large for a single response
@@ -146,14 +237,15 @@ export class OpportunityZoneService {
         }
 
         const cacheState: CacheState = {
-          geoJson,
           spatialIndex,
-          lastUpdated: result.lastUpdated,
-          nextRefresh: result.nextRefresh,
-          featureCount: result.featureCount,
-          isExpired,
-          dataHash: result.dataHash,
-          version: result.version
+          geoJson,
+          metadata: {
+            version: result.version,
+            lastUpdated: result.lastUpdated,
+            featureCount: result.featureCount,
+            nextRefreshDue: result.nextRefresh,
+            dataHash: result.dataHash
+          }
         }
 
         log("success", `✅ Successfully loaded ${result.featureCount} opportunity zones from cache database`)
@@ -190,18 +282,18 @@ export class OpportunityZoneService {
         prismaCache.opportunityZoneCache.deleteMany(),
         prismaCache.opportunityZoneCache.create({
           data: {
-            version: cacheState.version,
-            lastUpdated: cacheState.lastUpdated,
-            featureCount: cacheState.featureCount,
-            nextRefresh: cacheState.nextRefresh,
-            dataHash: cacheState.dataHash,
+            version: cacheState.metadata.version,
+            lastUpdated: cacheState.metadata.lastUpdated,
+            featureCount: cacheState.metadata.featureCount,
+            nextRefresh: cacheState.metadata.nextRefreshDue,
+            dataHash: cacheState.metadata.dataHash || "",
             geoJsonData: cacheState.geoJson,
             spatialIndex: spatialIndexData
           }
         })
       ])
 
-      log("success", `✅ Successfully saved ${cacheState.featureCount} opportunity zones to cache database`)
+      log("success", `✅ Successfully saved ${cacheState.metadata.featureCount} opportunity zones to cache database`)
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
