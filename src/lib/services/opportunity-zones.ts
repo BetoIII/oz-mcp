@@ -3,6 +3,8 @@ import booleanPointInPolygon from '@turf/boolean-point-in-polygon'
 import { point } from '@turf/helpers'
 import { prisma } from '@/app/prisma'
 import { withRetry } from '@/lib/db-retry'
+import { PrismaClient } from '@/generated/prisma-cache'
+import { prismaCache } from '@/app/prisma-cache'
 
 // Type for the log function
 type LogFn = (type: "info" | "success" | "warning" | "error", message: string) => void;
@@ -17,6 +19,28 @@ export interface SpatialIndexMetadata {
   featureCount: number
   nextRefreshDue: Date
   dataHash?: string
+}
+
+export interface CacheInfo {
+  id: string
+  version: string
+  lastUpdated: Date
+  featureCount: number
+  nextRefresh: Date
+  dataHash: string
+  createdAt: Date
+}
+
+export interface ServiceStatus {
+  isReady: boolean
+  isInitializing: boolean
+  lastUpdated: Date | null
+  featureCount: number
+  nextRefresh: Date | null
+  dataHash: string | null
+  version: string | null
+  hasCache: boolean
+  cacheExpired: boolean
 }
 
 export interface RBushItem {
@@ -54,20 +78,86 @@ export class OpportunityZoneService {
 
   /**
    * Quick initialization - tries to load from database without blocking
+   * If cache database is empty, triggers seeding in background
    */
   private quickInitialize() {
     this.loadFromDatabase()
       .then((cachedData) => {
         if (cachedData) {
           this.cache = cachedData
-          console.log('[OpportunityZoneService] ✅ Quick initialization successful from database')
+          console.log('[OpportunityZoneService] ✅ Quick initialization successful from cache database')
         } else {
-          console.log('[OpportunityZoneService] ⚠️  No cached data found, will initialize on first request')
+          console.log('[OpportunityZoneService] ⚠️  No cached data found in cache database')
+          console.log('[OpportunityZoneService] 🌱 Attempting to seed cache database in background...')
+          
+          // Don't block startup - seed in background
+          this.seedCacheDatabase()
+            .then(() => {
+              console.log('[OpportunityZoneService] ✅ Cache database seeding completed, reloading...')
+              return this.loadFromDatabase()
+            })
+            .then((seededData) => {
+              if (seededData) {
+                this.cache = seededData
+                console.log('[OpportunityZoneService] ✅ Cache loaded after seeding')
+              } else {
+                console.log('[OpportunityZoneService] ⚠️  Cache still empty after seeding attempt')
+              }
+            })
+            .catch((error) => {
+              console.log('[OpportunityZoneService] ⚠️  Cache database seeding failed:', error instanceof Error ? error.message : 'Unknown error')
+              console.log('[OpportunityZoneService] 💡 Service will continue to work but may be slower on first requests')
+              console.log('[OpportunityZoneService] 💡 Consider running: node scripts/seed-opportunity-zones.js')
+            })
         }
       })
       .catch((error) => {
-        console.log('[OpportunityZoneService] ⚠️  Quick initialization failed, will initialize on first request:', error instanceof Error ? error.message : 'Unknown error')
+        console.log('[OpportunityZoneService] ⚠️  Quick initialization failed:', error instanceof Error ? error.message : 'Unknown error')
+        console.log('[OpportunityZoneService] 💡 Service will attempt to initialize on first request')
       })
+  }
+
+  /**
+   * Trigger seeding of the cache database
+   */
+  private async seedCacheDatabase(): Promise<void> {
+    try {
+      const { spawn } = require('child_process')
+      
+      return new Promise<void>((resolve, reject) => {
+        const seedProcess = spawn('node', ['scripts/seed-opportunity-zones.js'], {
+          stdio: 'pipe',
+          cwd: process.cwd()
+        })
+
+        let output = ''
+        let errorOutput = ''
+
+        seedProcess.stdout.on('data', (data: Buffer) => {
+          output += data.toString()
+        })
+
+        seedProcess.stderr.on('data', (data: Buffer) => {
+          errorOutput += data.toString()
+        })
+
+        seedProcess.on('close', (code: number | null) => {
+          if (code === 0) {
+            console.log('[OpportunityZoneService] Seeding output:', output)
+            resolve()
+          } else {
+            console.error('[OpportunityZoneService] Seeding failed:', errorOutput)
+            reject(new Error(`Seeding process exited with code ${code}: ${errorOutput}`))
+          }
+        })
+
+        seedProcess.on('error', (error: Error) => {
+          reject(error)
+        })
+      })
+    } catch (error) {
+      throw new Error(`Failed to start seeding process: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
   }
 
   static getInstance(): OpportunityZoneService {
@@ -87,95 +177,85 @@ export class OpportunityZoneService {
 
   private async loadFromDatabase(log: LogFn = defaultLog): Promise<CacheState | null> {
     try {
-      log("info", "🔍 Checking database for cached opportunity zone data...")
+      log("info", "📦 Loading opportunity zones from cache database...")
       
-      const startTime = Date.now()
-      
-      // First, check if we have any cached data (metadata only)
-      const cached = await withRetry(async () => {
-        const queryPromise = prisma.opportunityZoneCache.findFirst({
-          select: {
-            id: true,
-            version: true,
-            lastUpdated: true,
-            featureCount: true,
-            nextRefresh: true,
-            dataHash: true,
-            createdAt: true,
-            updatedAt: true
-          },
-          orderBy: { createdAt: 'desc' }
-        })
-
-        const timeoutPromise = new Promise<null>((_, reject) => {
-          setTimeout(() => reject(new Error('Database query timeout')), this.QUICK_LOAD_TIMEOUT)
-        })
-
-        return await Promise.race([queryPromise, timeoutPromise])
+      const queryPromise = prismaCache.opportunityZoneCache.findFirst({
+        select: {
+          id: true,
+          version: true,
+          lastUpdated: true,
+          featureCount: true,
+          nextRefresh: true,
+          dataHash: true,
+          geoJsonData: true,
+          spatialIndex: true,
+          createdAt: true
+        },
+        orderBy: { createdAt: 'desc' }
       })
-      
-      const loadTime = Date.now() - startTime
-      log("info", `⏱️  Database metadata query completed in ${loadTime}ms`)
 
-      if (!cached) {
-        log("warning", "📦 No cached data found in database - database may need seeding")
+      const result = await Promise.race([
+        queryPromise,
+        new Promise<null>((_, reject) => 
+          setTimeout(() => reject(new Error(`Database query timeout after ${this.QUICK_LOAD_TIMEOUT}ms`)), this.QUICK_LOAD_TIMEOUT)
+        )
+      ])
+
+      if (!result) {
+        log("warning", "⚠️  No opportunity zone cache found in database")
         return null
       }
 
-      if (new Date() >= cached.nextRefresh) {
-        log("info", "⏰ Cached data expired, will refresh in background")
-        // Don't return null immediately - use expired data and refresh in background
+      log("info", `📊 Found cache entry with ${result.featureCount} features`)
+      
+      // Check if data is expired
+      const now = new Date()
+      const isExpired = now >= result.nextRefresh
+      
+      if (isExpired) {
+        log("warning", "⚠️  Cache entry is expired, will refresh in background")
+        // Don't return null here - we'll use expired data and refresh in background
         this.refresh(log).catch(error => {
-          log("error", `Background refresh failed: ${error.message}`)
+          log("error", `Background refresh failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
         })
       }
 
-      log("info", `📦 Loading cached data from database (${cached.featureCount} features)`)
-      
-      // Now load the large data fields separately
-      const dataStartTime = Date.now()
-      const fullCached = await withRetry(async () => {
-        const queryPromise = prisma.opportunityZoneCache.findFirst({
-          select: {
-            geoJsonData: true,
-            spatialIndex: true
-          },
-          where: { id: cached.id }
-        })
+      // Check if the data is too large for a single response
+      const geoJsonSize = JSON.stringify(result.geoJsonData).length
+      if (geoJsonSize > 50 * 1024 * 1024) { // 50MB limit
+        log("warning", `⚠️  Cache data is very large (${(geoJsonSize / 1024 / 1024).toFixed(1)}MB)`)
+      }
 
-        const timeoutPromise = new Promise<null>((_, reject) => {
-          setTimeout(() => reject(new Error('Database large data query timeout')), this.QUICK_LOAD_TIMEOUT * 2) // Double timeout for large data
-        })
+      try {
+        const geoJson = result.geoJsonData as GeoJsonData
+        const spatialIndex = this.createSpatialIndex(geoJson)
+        
+        // Load the spatial index data
+        if (result.spatialIndex && Array.isArray(result.spatialIndex)) {
+          spatialIndex.clear()
+          spatialIndex.load(result.spatialIndex as any)
+        }
 
-        return await Promise.race([queryPromise, timeoutPromise])
-      })
-      
-      const dataLoadTime = Date.now() - dataStartTime
-      log("info", `⏱️  Database large data query completed in ${dataLoadTime}ms`)
+        const cacheState: CacheState = {
+          spatialIndex,
+          geoJson,
+          metadata: {
+            version: result.version,
+            lastUpdated: result.lastUpdated,
+            featureCount: result.featureCount,
+            nextRefreshDue: result.nextRefresh,
+            dataHash: result.dataHash
+          }
+        }
 
-      if (!fullCached) {
-        log("error", "❌ Failed to load large data fields from database")
+        log("success", `✅ Successfully loaded ${result.featureCount} opportunity zones from cache database`)
+        return cacheState
+
+      } catch (parseError) {
+        log("error", `❌ Failed to parse cached data: ${parseError instanceof Error ? parseError.message : 'Unknown error'}`)
         return null
       }
-      
-      // Rebuild the spatial index from cached data
-      const indexStartTime = Date.now()
-      const spatialIndex = new RBush<RBushItem>()
-      spatialIndex.load(fullCached.spatialIndex as unknown as RBushItem[])
-      const indexLoadTime = Date.now() - indexStartTime
-      log("info", `🗂️  Spatial index rebuilt in ${indexLoadTime}ms`)
 
-      return {
-        spatialIndex,
-        geoJson: fullCached.geoJsonData,
-        metadata: {
-          version: cached.version,
-          lastUpdated: cached.lastUpdated,
-          featureCount: cached.featureCount,
-          nextRefreshDue: cached.nextRefresh,
-          dataHash: cached.dataHash
-        }
-      }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
       if (errorMessage.includes('timeout')) {
@@ -191,32 +271,34 @@ export class OpportunityZoneService {
     }
   }
 
-  private async saveToDatabase(cache: CacheState, log: LogFn = defaultLog): Promise<void> {
+  private async saveToDatabase(cacheState: CacheState, log: LogFn = defaultLog): Promise<void> {
     try {
-      // Convert spatial index to serializable format
-      const spatialIndexData = cache.spatialIndex.all()
+      log("info", "💾 Saving opportunity zones to cache database...")
+      
+      const spatialIndexData = cacheState.spatialIndex.all()
+      
+      // Clear old cache entries and save new one
+      await prismaCache.$transaction([
+        prismaCache.opportunityZoneCache.deleteMany(),
+        prismaCache.opportunityZoneCache.create({
+          data: {
+            version: cacheState.metadata.version,
+            lastUpdated: cacheState.metadata.lastUpdated,
+            featureCount: cacheState.metadata.featureCount,
+            nextRefresh: cacheState.metadata.nextRefreshDue,
+            dataHash: cacheState.metadata.dataHash || "",
+            geoJsonData: cacheState.geoJson,
+            spatialIndex: spatialIndexData
+          }
+        })
+      ])
 
-      // Clear old cache entries and save new cache with retry logic
-      await withRetry(async () => {
-        return await prisma.$transaction([
-          prisma.opportunityZoneCache.deleteMany(),
-          prisma.opportunityZoneCache.create({
-            data: {
-              version: cache.metadata.version,
-              lastUpdated: cache.metadata.lastUpdated,
-              featureCount: cache.metadata.featureCount,
-              nextRefresh: cache.metadata.nextRefreshDue,
-              dataHash: cache.metadata.dataHash || "",
-              geoJsonData: cache.geoJson,
-              spatialIndex: spatialIndexData as any
-            }
-          })
-        ])
-      })
+      log("success", `✅ Successfully saved ${cacheState.metadata.featureCount} opportunity zones to cache database`)
 
-      log("success", "Cache saved to database")
     } catch (error) {
-      log("error", `Failed to save to database: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      log("error", `❌ Failed to save to database: ${errorMessage}`)
+      throw error
     }
   }
 
@@ -618,6 +700,69 @@ export class OpportunityZoneService {
     if (this.refreshInterval) {
       clearInterval(this.refreshInterval)
       this.refreshInterval = null
+    }
+  }
+
+  async getServiceStatus(): Promise<ServiceStatus> {
+    try {
+      // Check cache database status
+      const cacheStatus = await prismaCache.opportunityZoneCache.findFirst({
+        select: {
+          id: true,
+          version: true,
+          lastUpdated: true,
+          featureCount: true,
+          nextRefresh: true,
+          dataHash: true,
+          createdAt: true
+        },
+        orderBy: { createdAt: 'desc' }
+      })
+
+      return {
+        isReady: this.cache !== null,
+        isInitializing: this.isInitializing,
+        lastUpdated: cacheStatus?.lastUpdated || null,
+        featureCount: cacheStatus?.featureCount || 0,
+        nextRefresh: cacheStatus?.nextRefresh || null,
+        dataHash: cacheStatus?.dataHash || null,
+        version: cacheStatus?.version || null,
+        hasCache: cacheStatus !== null,
+        cacheExpired: cacheStatus ? new Date() >= cacheStatus.nextRefresh : false
+      }
+    } catch (error) {
+      console.error('Error getting service status:', error)
+      return {
+        isReady: false,
+        isInitializing: this.isInitializing,
+        lastUpdated: null,
+        featureCount: 0,
+        nextRefresh: null,
+        dataHash: null,
+        version: null,
+        hasCache: false,
+        cacheExpired: false
+      }
+    }
+  }
+
+  async getCacheStatus(): Promise<CacheInfo> {
+    try {
+      return await prismaCache.opportunityZoneCache.findFirst({
+        select: {
+          id: true,
+          version: true,
+          lastUpdated: true,
+          featureCount: true,
+          nextRefresh: true,
+          dataHash: true,
+          createdAt: true
+        },
+        orderBy: { createdAt: 'desc' }
+      }) as CacheInfo
+    } catch (error) {
+      console.error('Error getting cache status:', error)
+      throw new Error('Failed to get cache status')
     }
   }
 }

@@ -1,0 +1,32 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma-cache"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("CACHE_STORAGE_POSTGRES_URL")
+}
+
+model OpportunityZoneCache {
+  id           String   @id @default(cuid())
+  version      String
+  lastUpdated  DateTime
+  featureCount Int
+  nextRefresh  DateTime
+  dataHash     String
+  geoJsonData  Json
+  spatialIndex Json
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model GeocodingCache {
+  id          String   @id @default(cuid())
+  address     String   @unique
+  latitude    Float
+  longitude   Float
+  displayName String
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+}
