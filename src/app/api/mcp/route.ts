@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/app/prisma';
 import { opportunityZoneService } from '@/lib/services/opportunity-zones';
 import { geocodingService } from '@/lib/services/geocoding';
+import { withRetry } from '@/lib/db-retry';
 
-// Authentication helper
+// Authentication helper with database retry logic
 async function authenticateRequest(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
   
@@ -18,8 +19,10 @@ async function authenticateRequest(request: NextRequest) {
   }
 
   try {
-    const accessToken = await prisma.accessToken.findUnique({
-      where: { token },
+    const accessToken = await withRetry(async () => {
+      return await prisma.accessToken.findUnique({
+        where: { token },
+      });
     });
 
     if (!accessToken) {
@@ -33,6 +36,13 @@ async function authenticateRequest(request: NextRequest) {
     return accessToken;
   } catch (e) {
     console.error('Error validating token:', e);
+    
+    // Provide more specific error messages for debugging
+    const errorMessage = e instanceof Error ? e.message : 'Unknown error';
+    if (errorMessage.includes('Can\'t reach database server')) {
+      console.error('Database connection failed during token validation - the database may be sleeping');
+    }
+    
     return null;
   }
 }
