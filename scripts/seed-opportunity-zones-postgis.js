@@ -1,5 +1,4 @@
 const { PrismaClient } = require('../src/generated/prisma');
-const { PostGISOpportunityZoneService } = require('../src/lib/services/postgis-opportunity-zones');
 const { OpportunityZoneSeeder } = require('./seed-opportunity-zones');
 
 const prisma = new PrismaClient();
@@ -7,7 +6,7 @@ const prisma = new PrismaClient();
 class PostGISOpportunityZoneSeeder extends OpportunityZoneSeeder {
   constructor() {
     super();
-    this.postGISService = PostGISOpportunityZoneService.getInstance();
+    this.simplificationTolerance = 0.001; // Default tolerance for geometry simplification
   }
 
   async checkPostGISSetup() {
@@ -15,7 +14,13 @@ class PostGISOpportunityZoneSeeder extends OpportunityZoneSeeder {
     
     try {
       // Check if PostGIS extension is enabled
-      const isAvailable = await this.postGISService.checkPostGISAvailability(this.log.bind(this));
+      const result = await prisma.$queryRaw`
+        SELECT EXISTS(
+          SELECT 1 FROM pg_extension WHERE extname = 'postgis'
+        ) as available
+      `;
+      
+      const isAvailable = result[0]?.available || false;
       
       if (!isAvailable) {
         this.log('error', '❌ PostGIS extension not found!');
@@ -72,10 +77,10 @@ class PostGISOpportunityZoneSeeder extends OpportunityZoneSeeder {
       
       // Store optimized geometries using PostGIS
       this.log('info', '🔄 Storing optimized geometries with PostGIS...');
-      await this.postGISService.storeOptimizedGeometries(geoJson, this.log.bind(this));
+      await this.storeOptimizedGeometries(geoJson);
 
       // Get optimization statistics
-      const stats = await this.postGISService.getOptimizationStats(this.log.bind(this));
+      const stats = await this.getOptimizationStats();
       if (stats) {
         this.log('success', '📊 PostGIS Optimization Results:');
         this.log('info', `   📦 Total zones: ${stats.totalZones}`);
@@ -158,10 +163,7 @@ class PostGISOpportunityZoneSeeder extends OpportunityZoneSeeder {
         { lat: 42.3601, lon: -71.0589 }, // Boston
       ];
 
-      const benchmarkResults = await this.postGISService.benchmarkPerformance(
-        testPoints, 
-        this.log.bind(this)
-      );
+      const benchmarkResults = await this.benchmarkPerformance(testPoints);
 
       this.log('success', '🎯 Benchmark Results:');
       this.log('info', `   ⚡ Average query time: ${benchmarkResults.avgQueryTime.toFixed(2)}ms`);
@@ -187,7 +189,7 @@ class PostGISOpportunityZoneSeeder extends OpportunityZoneSeeder {
       const traditionalHealthy = await super.checkDatabaseHealth();
       
       // Check PostGIS optimization
-      const metadata = await this.postGISService.getMetadata(this.log.bind(this));
+      const metadata = await this.getMetadata();
       
       if (metadata.isPostGISEnabled && metadata.featureCount > 0) {
         this.log('success', `✅ PostGIS optimization active with ${metadata.featureCount} zones`);
@@ -205,6 +207,155 @@ class PostGISOpportunityZoneSeeder extends OpportunityZoneSeeder {
       this.log('error', `❌ Health check failed: ${error.message}`);
       return false;
     }
+  }
+
+  async storeOptimizedGeometries(geoJsonData) {
+    if (!geoJsonData?.features?.length) {
+      this.log('error', '❌ No features found in GeoJSON data');
+      return;
+    }
+
+    this.log('info', `🔄 Processing ${geoJsonData.features.length} features for PostGIS optimization...`);
+
+    try {
+      // Clear existing data
+      await prisma.$executeRaw`DELETE FROM "OpportunityZone"`;
+      
+      // Process features in batches to avoid memory issues
+      const batchSize = 100;
+      const features = geoJsonData.features;
+      
+      for (let i = 0; i < features.length; i += batchSize) {
+        const batch = features.slice(i, i + batchSize);
+        
+        this.log('info', `📦 Processing batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(features.length / batchSize)} (${batch.length} features)`);
+        
+        const batchPromises = batch.map(async (feature) => {
+          const geoid = feature.properties?.GEOID || feature.properties?.CENSUSTRAC;
+          
+          if (!geoid) {
+            this.log('warning', `⚠️  Skipping feature without GEOID`);
+            return;
+          }
+
+          // Convert GeoJSON to PostGIS format and create simplified versions
+          const geoJsonString = JSON.stringify(feature.geometry);
+          
+          try {
+            await prisma.$executeRaw`
+              INSERT INTO "OpportunityZone" (id, geoid, "originalGeom", "simplifiedGeom", bbox, "updatedAt")
+              VALUES (
+                gen_random_uuid(),
+                ${geoid},
+                ST_SetSRID(ST_GeomFromGeoJSON(${geoJsonString}), 4326),
+                ST_SimplifyPreserveTopology(ST_SetSRID(ST_GeomFromGeoJSON(${geoJsonString}), 4326), ${this.simplificationTolerance}),
+                ST_Envelope(ST_SetSRID(ST_GeomFromGeoJSON(${geoJsonString}), 4326)),
+                NOW()
+              )
+              ON CONFLICT (geoid) DO UPDATE SET
+                "originalGeom" = EXCLUDED."originalGeom",
+                "simplifiedGeom" = EXCLUDED."simplifiedGeom",
+                bbox = EXCLUDED.bbox,
+                "updatedAt" = NOW()
+            `;
+          } catch (error) {
+            this.log('error', `❌ Failed to process feature ${geoid}: ${error.message}`);
+          }
+        });
+        
+        await Promise.all(batchPromises);
+        
+        // Log progress
+        const processed = Math.min(i + batchSize, features.length);
+        this.log('info', `✅ Processed ${processed}/${features.length} features (${Math.round(processed / features.length * 100)}%)`);
+      }
+      
+      this.log('success', `🎉 Successfully stored ${features.length} optimized geometries`);
+      
+    } catch (error) {
+      this.log('error', `❌ Failed to store optimized geometries: ${error.message}`);
+      throw error;
+    }
+  }
+
+  async getOptimizationStats() {
+    try {
+      const result = await prisma.$queryRaw`
+        SELECT * FROM get_postgis_optimization_stats()
+      `;
+
+      if (result.length === 0) {
+        return null;
+      }
+
+      const stats = result[0];
+      return {
+        totalZones: stats.total_zones,
+        avgOriginalVertices: stats.avg_original_vertices,
+        avgSimplifiedVertices: stats.avg_simplified_vertices,
+        compressionRatio: stats.compression_ratio
+      };
+    } catch (error) {
+      this.log('error', `❌ Failed to get optimization stats: ${error.message}`);
+      return null;
+    }
+  }
+
+  async getMetadata() {
+    try {
+      const countResult = await prisma.$queryRaw`
+        SELECT COUNT(*) as count FROM "OpportunityZone"
+      `;
+      const stats = await this.getOptimizationStats();
+      
+      return {
+        isPostGISEnabled: true,
+        lastUpdated: new Date(),
+        featureCount: Number(countResult[0]?.count || 0),
+        optimizationStats: stats
+      };
+    } catch (error) {
+      this.log('error', `❌ Failed to get metadata: ${error.message}`);
+      return {
+        isPostGISEnabled: false,
+        lastUpdated: new Date(),
+        featureCount: 0
+      };
+    }
+  }
+
+  async benchmarkPerformance(testPoints) {
+    this.log('info', `🔬 Benchmarking PostGIS performance with ${testPoints.length} test points...`);
+
+    const startTime = Date.now();
+    let successCount = 0;
+    
+    const results = await Promise.all(
+      testPoints.map(async (point) => {
+        const queryStart = Date.now();
+        try {
+          const result = await prisma.$queryRaw`
+            SELECT * FROM check_point_in_opportunity_zone_fast(${point.lat}, ${point.lon})
+          `;
+          if (result.length > 0) successCount++;
+          return Date.now() - queryStart;
+        } catch (error) {
+          return Date.now() - queryStart;
+        }
+      })
+    );
+
+    const totalTime = Date.now() - startTime;
+    const avgQueryTime = results.reduce((sum, time) => sum + time, 0) / results.length;
+    const successRate = (successCount / testPoints.length) * 100;
+
+    this.log('success', `📊 Benchmark results: ${avgQueryTime.toFixed(2)}ms avg per query, ${successRate.toFixed(1)}% success rate`);
+    
+    return {
+      avgQueryTime,
+      totalQueries: testPoints.length,
+      successRate
+    };
   }
 
   async displayOptimizationTips() {
