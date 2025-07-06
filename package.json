@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && next build",
+    "build": "prisma generate && prisma generate --schema=prisma/schema-cache.prisma && next build",
     "start": "next start",
     "lint": "next lint",
     "seed": "node scripts/seed-opportunity-zones.js",
@@ -16,7 +16,11 @@
     "optimize": "npm run preprocess && npm run seed",
     "deploy:setup": "node scripts/deploy-setup.js",
     "prebuild": "npm run deploy:setup",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate && prisma generate --schema=prisma/schema-cache.prisma",
+    "db:push": "prisma db push",
+    "db:push:cache": "prisma db push --schema=prisma/schema-cache.prisma",
+    "db:migrate": "prisma migrate dev",
+    "db:migrate:cache": "prisma migrate dev --schema=prisma/schema-cache.prisma"
   },
   "dependencies": {
     "@auth/core": "^0.39.1",

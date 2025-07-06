@@ -1,4 +1,4 @@
-const { PrismaClient } = require('../src/generated/prisma');
+const { PrismaClient } = require('../src/generated/prisma-cache');
 const RBush = require('rbush').default;
 const fetch = require('node-fetch');
 const crypto = require('crypto');
@@ -6,7 +6,7 @@ const path = require('path');
 const fs = require('fs').promises;
 const { OpportunityZonePreprocessor } = require('./preprocess-opportunity-zones');
 
-const prisma = new PrismaClient();
+const prismaCache = new PrismaClient();
 
 class OpportunityZoneSeeder {
   constructor() {
@@ -137,7 +137,7 @@ class OpportunityZoneSeeder {
       const dataHash = await this.calculateDataHash(geoJson);
       
       // Check if we already have this data
-      const existing = await prisma.opportunityZoneCache.findFirst({
+      const existing = await prismaCache.opportunityZoneCache.findFirst({
         select: {
           id: true,
           version: true,
@@ -161,11 +161,11 @@ class OpportunityZoneSeeder {
 
       // Clear old cache entries
       this.log('info', '🧹 Clearing old cache entries...');
-      await prisma.opportunityZoneCache.deleteMany();
+      await prismaCache.opportunityZoneCache.deleteMany();
 
       // Save new cache
       this.log('info', '💾 Saving to database...');
-      await prisma.opportunityZoneCache.create({
+      await prismaCache.opportunityZoneCache.create({
         data: {
           version: new Date().toISOString(),
           lastUpdated: new Date(),
@@ -187,7 +187,7 @@ class OpportunityZoneSeeder {
 
   async checkDatabaseHealth() {
     try {
-      const cacheEntry = await prisma.opportunityZoneCache.findFirst({
+      const cacheEntry = await prismaCache.opportunityZoneCache.findFirst({
         select: {
           id: true,
           version: true,
@@ -220,7 +220,11 @@ class OpportunityZoneSeeder {
   }
 
   async cleanup() {
-    await prisma.$disconnect();
+    try {
+      await prismaCache.$disconnect();
+    } catch (error) {
+      console.error('Error during cleanup:', error);
+    }
   }
 }
 

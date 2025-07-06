@@ -1,4 +1,4 @@
-import { prisma } from '@/app/prisma'
+import { prismaCache } from '@/app/prisma-cache'
 
 // Type for the log function
 type LogFn = (type: "info" | "success" | "warning" | "error", message: string) => void;
@@ -33,7 +33,7 @@ export class GeocodingService {
 
   private async getCachedResult(address: string): Promise<GeocodingResult | null> {
     try {
-      const cached = await prisma.geocodingCache.findUnique({
+      const cached = await prismaCache.geocodingCache.findUnique({
         where: { address: this.normalizeAddress(address) }
       })
 
@@ -44,7 +44,7 @@ export class GeocodingService {
       // Check if cache has expired
       if (new Date() >= cached.expiresAt) {
         // Delete expired cache entry
-        await prisma.geocodingCache.delete({
+        await prismaCache.geocodingCache.delete({
           where: { id: cached.id }
         }).catch(() => {}) // Ignore errors in cleanup
         return null
@@ -66,7 +66,7 @@ export class GeocodingService {
       const normalizedAddress = this.normalizeAddress(address)
       const expiresAt = new Date(Date.now() + this.CACHE_DURATION)
 
-      await prisma.geocodingCache.upsert({
+      await prismaCache.geocodingCache.upsert({
         where: { address: normalizedAddress },
         update: {
           latitude: result.latitude,
@@ -94,16 +94,13 @@ export class GeocodingService {
       throw new Error('Geocoding API key not configured')
     }
 
-    // Use geocode.maps.co as mentioned in the plan
-    const url = `https://geocode.maps.co/search?q=${encodeURIComponent(address)}&api_key=${apiKey}`
-    
     log("info", `🌍 Geocoding address: ${address}`)
 
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), this.REQUEST_TIMEOUT)
 
     try {
-      const response = await fetch(url, {
+      const response = await fetch(`https://geocode.maps.co/search?q=${encodeURIComponent(address)}&api_key=${apiKey}`, {
         signal: controller.signal,
         headers: {
           'User-Agent': 'Opportunity Zone MCP Server'
@@ -168,7 +165,7 @@ export class GeocodingService {
 
   async clearExpiredCache(): Promise<number> {
     try {
-      const result = await prisma.geocodingCache.deleteMany({
+      const result = await prismaCache.geocodingCache.deleteMany({
         where: {
           expiresAt: {
             lt: new Date()
@@ -188,8 +185,8 @@ export class GeocodingService {
   }> {
     try {
       const [total, expired] = await Promise.all([
-        prisma.geocodingCache.count(),
-        prisma.geocodingCache.count({
+        prismaCache.geocodingCache.count(),
+        prismaCache.geocodingCache.count({
           where: {
             expiresAt: {
               lt: new Date()
