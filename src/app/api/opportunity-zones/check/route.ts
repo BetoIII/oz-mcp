@@ -1,151 +1,98 @@
-import { NextResponse } from 'next/server'
-import { z } from 'zod'
-import { opportunityZoneService } from '@/lib/services/opportunity-zones'
-import { geocodingService } from '@/lib/services/geocoding'
+import { NextRequest, NextResponse } from 'next/server'
+import { OpportunityZoneService } from '@/lib/services/opportunity-zones'
 
-export const runtime = 'nodejs'
+export async function GET(request: NextRequest) {
+  const searchParams = request.nextUrl.searchParams
+  const lat = searchParams.get('lat')
+  const lon = searchParams.get('lon')
 
-// Input validation schema
-const checkRequestSchema = z.object({
-  latitude: z.number().min(-90).max(90).optional(),
-  longitude: z.number().min(-180).max(180).optional(),
-  address: z.string().optional()
-}).refine(
-  (data) => {
-    // Either coordinates or address must be provided
-    return (data.latitude !== undefined && data.longitude !== undefined) || data.address !== undefined
-  },
-  {
-    message: "Either both latitude and longitude, or address must be provided"
+  if (!lat || !lon) {
+    return NextResponse.json(
+      { error: 'Missing required parameters: lat and lon' },
+      { status: 400 }
+    )
   }
-)
 
-// Response type interface
-interface OpportunityZoneCheck {
-  lat: number
-  lon: number
-  timestamp: string
-  isInOpportunityZone: boolean
-  opportunityZoneId?: string
-  metadata: {
-    version: string
-    lastUpdated: string
-    featureCount: number
+  const latitude = parseFloat(lat)
+  const longitude = parseFloat(lon)
+
+  if (isNaN(latitude) || isNaN(longitude)) {
+    return NextResponse.json(
+      { error: 'Invalid coordinates: lat and lon must be valid numbers' },
+      { status: 400 }
+    )
   }
-  address?: string
-  displayName?: string
-}
 
-// Cache configuration
-const CACHE_CONTROL_HEADER = process.env.NODE_ENV === 'production'
-  ? 'public, max-age=3600, stale-while-revalidate=86400' // 1 hour fresh, 24 hours stale
-  : 'no-store' // No caching in development
+  if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+    return NextResponse.json(
+      { error: 'Invalid coordinates: lat must be between -90 and 90, lon must be between -180 and 180' },
+      { status: 400 }
+    )
+  }
 
-export async function OPTIONS() {
-  return new NextResponse(null, { 
-    status: 204,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    }
-  })
-}
+  const service = OpportunityZoneService.getInstance()
+  const startTime = Date.now()
 
-export async function POST(request: Request) {
   try {
-    // Parse and validate request body
-    const body = await request.json()
-    const parseResult = checkRequestSchema.safeParse(body)
+    const result = await service.checkPoint(latitude, longitude)
+    const queryTime = Date.now() - startTime
 
-    if (!parseResult.success) {
-      return NextResponse.json(
-        { 
-          error: 'Invalid request parameters',
-          details: parseResult.error.format()
-        },
-        { 
-          status: 400,
-          headers: {
-            'Access-Control-Allow-Origin': '*',
-          }
-        }
-      )
+    // Enhanced response with PostGIS optimization info
+    const performance: Record<string, any> = {
+      queryTimeMs: queryTime,
+      isOptimized: result.method === 'postgis',
+      optimizationActive: result.method === 'postgis' ? 'PostGIS spatial indexing with geometry simplification' : 
+                         result.method === 'rbush' ? 'R-Bush spatial indexing with in-memory cache' : 
+                         'Fallback mode - consider running PostGIS optimization'
     }
 
-    const { latitude, longitude, address } = parseResult.data
-
-    let coords: { latitude: number; longitude: number }
-    let geocodeResult: { displayName?: string } = {}
-
-    if (address) {
-      // Geocode the address first
-      const result = await geocodingService.geocodeAddress(address)
-      coords = {
-        latitude: result.latitude,
-        longitude: result.longitude
-      }
-      geocodeResult = { displayName: result.displayName }
+    // Add performance warnings/recommendations
+    if (queryTime > 1000) {
+      performance.warning = 'Query took longer than 1 second - consider running PostGIS optimization'
+      performance.recommendation = 'Run: node scripts/seed-opportunity-zones-postgis.js --force'
+    } else if (queryTime > 100) {
+      performance.info = 'Query completed in sub-second time - good performance'
     } else {
-      coords = { latitude: latitude!, longitude: longitude! }
+      performance.info = 'Excellent query performance - under 100ms'
     }
 
-    // Check if point is in an opportunity zone
-    const result = await opportunityZoneService.checkPoint(coords.latitude, coords.longitude)
-
-    // Generate ETag based on coordinates and data version
-    const etag = `"${coords.latitude},${coords.longitude}-${result.metadata.version}"`
-    const ifNoneMatch = request.headers.get('if-none-match')
-
-    // If ETag matches, return 304 Not Modified
-    if (ifNoneMatch === etag) {
-      return new NextResponse(null, {
-        status: 304,
-        headers: {
-          'Cache-Control': CACHE_CONTROL_HEADER,
-          'ETag': etag,
-          'Access-Control-Allow-Origin': '*',
-        }
-      })
-    }
-
-    const responseData: OpportunityZoneCheck = {
-      lat: coords.latitude,
-      lon: coords.longitude,
-      timestamp: new Date().toISOString(),
-      isInOpportunityZone: result.isInZone,
-      opportunityZoneId: result.zoneId,
-      metadata: {
-        version: result.metadata.version,
-        lastUpdated: result.metadata.lastUpdated.toISOString(),
-        featureCount: result.metadata.featureCount
+    const response = {
+      coordinates: {
+        latitude,
+        longitude
       },
-      ...(address && { address }),
-      ...(geocodeResult.displayName && { displayName: geocodeResult.displayName })
+      isInOpportunityZone: result.isInZone,
+      opportunityZoneId: result.zoneId || null,
+      metadata: {
+        queryTime: `${queryTime}ms`,
+        method: result.method || 'unknown',
+        lastUpdated: result.metadata.lastUpdated,
+        featureCount: result.metadata.featureCount,
+        nextRefreshDue: result.metadata.nextRefreshDue,
+        version: result.metadata.version
+      },
+      performance
     }
 
-    // Return response with cache headers
-    return NextResponse.json(responseData, {
-      headers: {
-        'Cache-Control': CACHE_CONTROL_HEADER,
-        'ETag': etag,
-        'Access-Control-Allow-Origin': '*',
-      }
-    })
-
+    return NextResponse.json(response, { status: 200 })
   } catch (error) {
-    console.error('Error processing request:', error)
+    const queryTime = Date.now() - startTime
+    
+    console.error('Error checking opportunity zone:', error)
+    
     return NextResponse.json(
       { 
-        error: 'Internal server error',
-        message: error instanceof Error ? error.message : 'Unknown error'
-      },
-      { 
-        status: 500,
-        headers: {
-          'Access-Control-Allow-Origin': '*',
+        error: 'Failed to check opportunity zone',
+        details: error instanceof Error ? error.message : 'Unknown error',
+        coordinates: { latitude, longitude },
+        queryTime: `${queryTime}ms`,
+        troubleshooting: {
+          suggestion: 'Try running PostGIS optimization for better performance',
+          command: 'node scripts/seed-opportunity-zones-postgis.js --force',
+          checkSetup: 'node scripts/seed-opportunity-zones-postgis.js --setup-check'
         }
-      }
+      },
+      { status: 500 }
     )
   }
 } 
