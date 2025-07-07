@@ -11,6 +11,7 @@ import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Progress } from '@/components/ui/progress';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { 
   MapPin, 
   Play, 
@@ -667,13 +668,12 @@ export default function PlaygroundPage() {
               </CardHeader>
               <CardContent>
                 {error && (
-                  <div className="p-4 bg-red-50 border border-red-200 rounded-lg mb-4">
-                    <div className="flex items-center space-x-2">
-                      <XCircle className="h-4 w-4 text-red-600" />
-                      <span className="text-sm font-medium text-red-800">Error</span>
-                    </div>
-                    <p className="text-sm text-red-700 mt-1">{error}</p>
-                  </div>
+                  <Alert variant="destructive" className="mb-4">
+                    <XCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      <strong>Error:</strong> {error}
+                    </AlertDescription>
+                  </Alert>
                 )}
 
                 {response && (

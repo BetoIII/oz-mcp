@@ -25,6 +25,7 @@ import {
 import Link from "next/link"
 import { motion } from "framer-motion"
 import { useSession, signIn, signOut } from "next-auth/react"
+import { config } from "@/lib/utils"
 
 export default function HomePage() {
   const { data: session } = useSession()
@@ -615,7 +616,7 @@ export default function HomePage() {
               <h3 className="mb-4 font-semibold">Connect</h3>
               <ul className="space-y-2 text-sm text-muted-foreground">
                 <li>
-                  <a href="https://oz-mcp.vercel.app" target="_blank" rel="noopener noreferrer" className="hover:text-foreground">
+                  <a href={config.baseUrl} target="_blank" rel="noopener noreferrer" className="hover:text-foreground">
                     API Endpoint
                   </a>
                 </li>
@@ -635,7 +636,7 @@ export default function HomePage() {
                 <div className="mr-1 h-2 w-2 rounded-full bg-green-500"></div>
                 All systems operational
               </Badge>
-              <code className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">https://oz-mcp.vercel.app</code>
+              <code className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">{config.baseUrl}</code>
             </div>
           </div>
         </div>

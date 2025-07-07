@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Copy, ExternalLink, Key, Trash2, User, Shield, Clock, Database } from 'lucide-react';
+import { config } from '@/lib/utils';
 
 export default async function DashboardPage() {
   const session = await auth();
@@ -136,10 +137,7 @@ export default async function DashboardPage() {
   }
 
   // Determine the callback URL based on environment
-  const isProduction = process.env.NODE_ENV === 'production' || process.env.NEXTAUTH_URL?.includes('vercel.app');
-  const callbackUrl = isProduction 
-    ? `${process.env.NEXTAUTH_URL || 'https://oz-mcp.vercel.app'}/oauth/callback`
-    : 'http://localhost:3000/callback';
+  const callbackUrl = `${config.baseUrl}/oauth/callback`;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50">

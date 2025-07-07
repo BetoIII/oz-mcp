@@ -1,17 +1,17 @@
 'use client';
 
 import { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Trash2 } from 'lucide-react';
 
 interface DeleteClientButtonProps {
   clientId: string;
   clientName: string;
-  onDelete: (formData: FormData) => void;
 }
 
 export default function DeleteClientButton({ 
   clientId, 
-  clientName, 
-  onDelete 
+  clientName 
 }: DeleteClientButtonProps) {
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -21,23 +21,23 @@ export default function DeleteClientButton({
     }
     
     setIsDeleting(true);
-    try {
-      await onDelete(formData);
-    } finally {
-      setIsDeleting(false);
-    }
+    // The form submission will be handled by the server action
+    // The setIsDeleting state will be reset when the page redirects
   };
 
   return (
     <form action={handleDelete} className="inline">
       <input type="hidden" name="clientId" value={clientId} />
-      <button
+      <Button
         type="submit"
+        variant="destructive"
+        size="sm"
         disabled={isDeleting}
-        className="bg-red-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-red-700 transition-colors font-medium disabled:opacity-50"
+        className="h-7 w-7 p-0"
       >
-        {isDeleting ? 'Deleting...' : 'Delete Client'}
-      </button>
+        <Trash2 className="h-3 w-3" />
+        <span className="sr-only">Delete {clientName}</span>
+      </Button>
     </form>
   );
 } 

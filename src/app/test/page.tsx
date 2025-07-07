@@ -2,6 +2,13 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { CheckCircle, XCircle, Clock, AlertTriangle } from 'lucide-react';
 
 export default function TestPage() {
   const [status, setStatus] = useState<string>('Ready to test');
@@ -168,104 +175,73 @@ export default function TestPage() {
         <div className="grid lg:grid-cols-2 gap-8">
           {/* Test Configuration */}
           <div className="space-y-6">
-            <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-8">
-              <h2 className="text-2xl font-semibold text-slate-900 mb-6">
-                Test Configuration
-              </h2>
-              
-              {/* Access Token Input */}
-              <div className="mb-6">
-                <label className="block text-sm font-medium text-slate-700 mb-2">
-                  Access Token
-                </label>
-                <input
-                  type="password"
-                  value={accessToken}
-                  onChange={(e) => setAccessToken(e.target.value)}
-                  className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Enter your access token here"
-                />
-                <p className="text-sm text-slate-500 mt-1">
-                  Get your access token from the{' '}
-                  <Link href="/dashboard" className="text-blue-600 hover:underline">
-                    dashboard
-                  </Link>
-                </p>
-              </div>
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-2xl">Test Configuration</CardTitle>
+                <CardDescription>
+                  Configure your access token and run connection tests
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* Access Token Input */}
+                <div className="space-y-2">
+                  <Label htmlFor="accessToken">Access Token</Label>
+                  <Input
+                    id="accessToken"
+                    type="password"
+                    value={accessToken}
+                    onChange={(e) => setAccessToken(e.target.value)}
+                    placeholder="Enter your access token here"
+                  />
+                  <p className="text-sm text-muted-foreground">
+                    Get your access token from the{' '}
+                    <Link href="/dashboard" className="text-blue-600 hover:underline">
+                      dashboard
+                    </Link>
+                  </p>
+                </div>
 
-              {/* Test Buttons */}
-              <div className="grid grid-cols-1 gap-4">
-                <button 
-                  onClick={testWithFetch}
-                  disabled={isLoading}
-                  className="w-full bg-blue-600 text-white py-3 px-6 rounded-xl hover:bg-blue-700 disabled:bg-slate-400 disabled:cursor-not-allowed transition-colors font-medium flex items-center justify-center space-x-2"
-                >
-                  {isLoading ? (
-                    <>
-                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      <span>Testing...</span>
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      <span>Test Connection (Fetch)</span>
-                    </>
-                  )}
-                </button>
-                
-                <button 
-                  onClick={testConnection}
-                  disabled={isLoading}
-                  className="w-full bg-green-600 text-white py-3 px-6 rounded-xl hover:bg-green-700 disabled:bg-slate-400 disabled:cursor-not-allowed transition-colors font-medium flex items-center justify-center space-x-2"
-                >
-                  {isLoading ? (
-                    <>
-                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      <span>Testing...</span>
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                      </svg>
-                      <span>Test SSE Connection</span>
-                    </>
-                  )}
-                </button>
-                
-                <button 
-                  onClick={generateTestToken}
-                  disabled={isLoading}
-                  className="w-full bg-purple-600 text-white py-3 px-6 rounded-xl hover:bg-purple-700 disabled:bg-slate-400 disabled:cursor-not-allowed transition-colors font-medium flex items-center justify-center space-x-2"
-                >
-                  {isLoading ? (
-                    <>
-                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      <span>Registering...</span>
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                      </svg>
-                      <span>Register Test Client</span>
-                    </>
-                  )}
-                </button>
-              </div>
+                {/* Test Buttons */}
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <Button
+                      onClick={testConnection}
+                      disabled={!accessToken.trim() || isLoading}
+                      className="w-full"
+                    >
+                      {isLoading ? 'Testing...' : 'Test SSE Connection'}
+                    </Button>
+                    <Button
+                      onClick={testWithFetch}
+                      disabled={!accessToken.trim() || isLoading}
+                      variant="outline"
+                      className="w-full"
+                    >
+                      Test with Fetch
+                    </Button>
+                  </div>
+                  
+                  <Button
+                    onClick={generateTestToken}
+                    disabled={isLoading}
+                    variant="secondary"
+                    className="w-full"
+                  >
+                    Register Test Client
+                  </Button>
+                </div>
 
-              {/* Clear Button */}
-              <div className="mt-4 pt-4 border-t border-slate-200">
-                <button
-                  onClick={clearMessages}
-                  className="w-full bg-slate-200 text-slate-700 py-2 px-4 rounded-lg hover:bg-slate-300 transition-colors font-medium"
-                >
-                  Clear Messages
-                </button>
-              </div>
-            </div>
+                {/* Clear Button */}
+                <div className="mt-4 pt-4 border-t border-slate-200">
+                  <button
+                    onClick={clearMessages}
+                    className="w-full bg-slate-200 text-slate-700 py-2 px-4 rounded-lg hover:bg-slate-300 transition-colors font-medium"
+                  >
+                    Clear Messages
+                  </button>
+                </div>
+              </CardContent>
+            </Card>
 
             {/* Instructions */}
             <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-2xl p-8 border border-amber-200">
@@ -308,55 +284,68 @@ export default function TestPage() {
 
           {/* Test Results */}
           <div className="space-y-6">
-            {/* Status */}
-            <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-8">
-              <h2 className="text-2xl font-semibold text-slate-900 mb-6">
-                Test Results
-              </h2>
-              
-              <div className="mb-6">
-                <div className="flex items-center space-x-2 mb-2">
-                  <div className={`w-3 h-3 rounded-full ${
-                    status.includes('Error') || status.includes('error') 
-                      ? 'bg-red-500' 
-                      : status.includes('successful') || status.includes('Connected')
-                      ? 'bg-green-500'
-                      : status.includes('Testing') || status.includes('Connecting')
-                      ? 'bg-yellow-500'
-                      : 'bg-slate-400'
-                  }`}></div>
-                  <span className="text-sm font-medium text-slate-700">Status</span>
-                </div>
-                <div className="bg-slate-50 rounded-lg p-4">
-                  <p className="text-slate-800 font-mono text-sm">{status}</p>
-                </div>
-              </div>
-
-              {/* Messages */}
-              <div>
-                <h3 className="text-lg font-semibold text-slate-900 mb-4">
-                  Messages ({messages.length})
-                </h3>
-                <div className="bg-slate-50 rounded-lg p-4 max-h-96 overflow-y-auto">
-                  {messages.length === 0 ? (
-                    <p className="text-slate-500 text-center py-8">
-                      No messages yet. Run a test to see results here.
-                    </p>
-                  ) : (
-                    <div className="space-y-2">
-                      {messages.map((msg, idx) => (
-                        <div key={idx} className="flex items-start space-x-2">
-                          <span className="bg-slate-200 text-slate-600 px-2 py-1 rounded text-xs font-mono">
-                            {idx + 1}
-                          </span>
-                          <span className="text-sm text-slate-700 font-mono">{msg}</span>
-                        </div>
-                      ))}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-2xl">Test Results</CardTitle>
+                <CardDescription>
+                  Connection status and response messages
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Status</Label>
+                    <div className="flex items-center space-x-2">
+                      <div className={`w-3 h-3 rounded-full ${
+                        status.includes('Error') || status.includes('error') 
+                          ? 'bg-destructive' 
+                          : status.includes('successful') || status.includes('Connected')
+                          ? 'bg-green-600'
+                          : status.includes('Testing') || status.includes('Connecting')
+                          ? 'bg-yellow-600'
+                          : 'bg-muted-foreground'
+                      }`}></div>
+                      <Badge variant={
+                        status.includes('Error') || status.includes('error') 
+                          ? 'destructive'
+                          : status.includes('successful') || status.includes('Connected')
+                          ? 'default'
+                          : 'secondary'
+                      }>
+                        {status}
+                      </Badge>
                     </div>
-                  )}
+                  </div>
+
+                  {/* Messages */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label>Messages</Label>
+                      <Button 
+                        onClick={clearMessages}
+                        variant="ghost"
+                        size="sm"
+                      >
+                        Clear
+                      </Button>
+                    </div>
+                    <div className="bg-muted rounded-lg p-4 max-h-64 overflow-y-auto">
+                      {messages.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">No messages yet...</p>
+                      ) : (
+                        <div className="space-y-1">
+                          {messages.map((message, index) => (
+                            <div key={index} className="text-sm font-mono">
+                              {message}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
+              </CardContent>
+            </Card>
 
             {/* Quick Links */}
             <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-8">
