@@ -51,7 +51,6 @@
     "@radix-ui/react-toggle": "1.1.1",
     "@radix-ui/react-toggle-group": "1.1.1",
     "@radix-ui/react-tooltip": "1.1.6",
-    "@tailwindcss/postcss": "^4.1.11",
     "@turf/boolean-point-in-polygon": "^7.2.0",
     "@turf/helpers": "^7.2.0",
     "@vercel/analytics": "^1.1.1",
@@ -91,7 +90,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "postcss": "^8.5.6",
-    "tailwindcss": "^4.1.10",
+    "tailwindcss": "^3.4.17",
     "typescript": "^5"
   }
 }
