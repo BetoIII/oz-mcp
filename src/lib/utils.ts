@@ -26,11 +26,21 @@ export function formatNumber(num: number) {
   return new Intl.NumberFormat().format(num);
 }
 
-// Environment-aware configuration
+// Environment-aware configuration with proper client/server handling
+function getBaseUrl() {
+  // On the server, we can use environment variables
+  if (typeof window === 'undefined') {
+    if (process.env.NEXTAUTH_URL) return process.env.NEXTAUTH_URL;
+    if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
+    return 'http://localhost:3000';
+  }
+  
+  // On the client, use the current origin
+  return window.location.origin;
+}
+
 export const config = {
-  baseUrl: process.env.NEXTAUTH_URL || process.env.VERCEL_URL 
-    ? `https://${process.env.VERCEL_URL}` 
-    : 'http://localhost:3000',
+  baseUrl: getBaseUrl(),
   isDevelopment: process.env.NODE_ENV === 'development',
   isProduction: process.env.NODE_ENV === 'production'
 }

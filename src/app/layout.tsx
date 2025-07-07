@@ -60,7 +60,15 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const session = await auth();
+  // Handle auth errors gracefully - don't block page rendering if database is down
+  let session = null;
+  try {
+    session = await auth();
+  } catch (error) {
+    console.warn('Auth error in layout (using fallback):', error);
+    // Continue without session - will use client-side session handling
+  }
+
   return (
     <html lang="en" className="h-full" suppressHydrationWarning>
       <head>

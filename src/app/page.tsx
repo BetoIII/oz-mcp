@@ -28,7 +28,7 @@ import { useSession, signIn, signOut } from "next-auth/react"
 import { config } from "@/lib/utils"
 
 export default function HomePage() {
-  const { data: session } = useSession()
+  const { data: session, status } = useSession()
   const [searchValue, setSearchValue] = useState("")
   const [searchCount, setSearchCount] = useState(0)
   const [searchResult, setSearchResult] = useState<{
@@ -45,6 +45,12 @@ export default function HomePage() {
     isLimited: boolean;
     resetTime?: number;
   }>({ isLimited: false })
+  const [isMounted, setIsMounted] = useState(false)
+
+  // Prevent hydration mismatches by only rendering session-dependent content after mount
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
 
   // Handle rate limit countdown
   useEffect(() => {
@@ -136,6 +142,40 @@ export default function HomePage() {
 
   const progressPercentage = (searchCount / 3) * 100
 
+  // Render loading state during hydration
+  if (!isMounted) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50">
+        <header className="sticky top-0 z-50 w-full border-b bg-white/80 backdrop-blur-md">
+          <div className="container mx-auto flex h-16 items-center justify-between px-4">
+            <div className="flex items-center space-x-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600">
+                <MapPin className="h-5 w-5 text-white" />
+              </div>
+              <span className="text-xl font-bold">OZ-MCP</span>
+            </div>
+            <nav className="hidden md:flex items-center space-x-6">
+              <Link href="/docs/oauth-flow" className="text-sm font-medium hover:text-blue-600">
+                Docs
+              </Link>
+              <Link href="/playground" className="text-sm font-medium hover:text-blue-600">
+                Playground
+              </Link>
+              <div className="flex items-center space-x-4">
+                <Button variant="outline" size="sm" disabled>
+                  Loading...
+                </Button>
+              </div>
+            </nav>
+          </div>
+        </header>
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="text-center">Loading...</div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50">
       {/* Header */}
@@ -154,7 +194,11 @@ export default function HomePage() {
             <Link href="/playground" className="text-sm font-medium hover:text-blue-600">
               Playground
             </Link>
-            {session?.user ? (
+            {status === "loading" ? (
+              <Button variant="outline" size="sm" disabled>
+                Loading...
+              </Button>
+            ) : session?.user ? (
               <div className="flex items-center space-x-4">
                 <Link href="/dashboard">
                   <Button size="sm">Dashboard</Button>
