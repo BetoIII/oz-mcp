@@ -169,7 +169,7 @@ export default async function DashboardPage() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Welcome Section */}
-        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl p-8 mb-8 border border-blue-100">
+        <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-8 mb-8">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
               {session.user.image && (
@@ -189,8 +189,10 @@ export default async function DashboardPage() {
               </div>
             </div>
             <div className="text-right">
-              <p className="text-sm text-slate-500">Total Clients</p>
-              <p className="text-2xl font-bold text-blue-600">{clients.length}</p>
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-100">
+                <p className="text-sm text-slate-500 mb-1">Total Clients</p>
+                <p className="text-2xl font-bold text-blue-600">{clients.length}</p>
+              </div>
             </div>
           </div>
         </div>
@@ -208,91 +210,107 @@ export default async function DashboardPage() {
                 </span>
               </div>
               
-              {clients.length === 0 ? (
+                              {clients.length === 0 ? (
                 <div className="text-center py-16">
-                  <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <svg className="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="w-16 h-16 bg-gradient-to-r from-blue-100 to-indigo-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                    <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
                   </div>
-                  <h3 className="text-lg font-medium text-slate-900 mb-2">No OAuth clients yet</h3>
-                  <p className="text-slate-600 mb-6">
-                    Create your first client to start using the API with OAuth 2.0 authentication.
+                  <h3 className="text-xl font-semibold text-slate-900 mb-3">No OAuth clients yet</h3>
+                  <p className="text-slate-600 mb-6 max-w-md mx-auto">
+                    Create your first client to start using the API with OAuth 2.0 authentication. Get started in just a few clicks.
                   </p>
-                  <div className="bg-slate-50 rounded-lg p-4 max-w-md mx-auto">
-                    <p className="text-sm text-slate-600">
-                      💡 OAuth clients allow your applications to securely access the MCP API on behalf of users.
+                  <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6 max-w-md mx-auto border border-blue-100">
+                    <div className="flex items-center space-x-2 mb-2">
+                      <span className="text-lg">💡</span>
+                      <span className="font-medium text-blue-900">Quick Tip</span>
+                    </div>
+                    <p className="text-sm text-blue-700">
+                      OAuth clients allow your applications to securely access the MCP API on behalf of users.
                     </p>
                   </div>
                 </div>
               ) : (
                 <div className="space-y-6">
                   {clients.map((client) => (
-                    <div key={client.id} className="bg-slate-50 rounded-xl p-6 border border-slate-200">
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center space-x-3">
-                          <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                            <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div key={client.id} className="bg-white rounded-2xl p-6 border border-slate-200 shadow-lg hover:shadow-xl transition-shadow">
+                      <div className="flex items-center justify-between mb-6">
+                        <div className="flex items-center space-x-4">
+                          <div className="w-12 h-12 bg-gradient-to-r from-blue-100 to-indigo-100 rounded-xl flex items-center justify-center">
+                            <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                             </svg>
                           </div>
                           <div>
-                            <h3 className="font-semibold text-slate-900 text-lg">{client.name}</h3>
+                            <h3 className="font-bold text-slate-900 text-xl">{client.name}</h3>
                             <p className="text-sm text-slate-500">
                               Created {client.createdAt.toLocaleDateString()}
                             </p>
                           </div>
                         </div>
-                        <div className="flex items-center space-x-2">
-                          <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-medium">
-                            {client.accessTokens.length} active
-                          </span>
-                          <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full text-xs font-medium">
-                            {client.authCodes.length} pending
-                          </span>
+                        <div className="flex items-center space-x-3">
+                          <div className="bg-green-50 border border-green-200 px-3 py-1 rounded-full">
+                            <span className="text-green-700 text-sm font-medium">
+                              {client.accessTokens.length} active
+                            </span>
+                          </div>
+                          <div className="bg-yellow-50 border border-yellow-200 px-3 py-1 rounded-full">
+                            <span className="text-yellow-700 text-sm font-medium">
+                              {client.authCodes.length} pending
+                            </span>
+                          </div>
                         </div>
                       </div>
                       
-                      <div className="grid md:grid-cols-2 gap-4 mb-4">
-                        <div className="bg-white p-4 rounded-lg border border-slate-200">
-                          <p className="text-sm font-medium text-slate-700 mb-2">Client ID</p>
-                          <code className="text-xs font-mono text-slate-600 bg-slate-50 px-2 py-1 rounded break-all">
+                      <div className="grid md:grid-cols-2 gap-4 mb-6">
+                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                          <div className="flex items-center space-x-2 mb-2">
+                            <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                            <p className="text-sm font-medium text-slate-700">Client ID</p>
+                          </div>
+                          <code className="text-xs font-mono text-slate-600 bg-white px-3 py-2 rounded-lg border border-slate-200 block break-all">
                             {client.clientId}
                           </code>
                         </div>
-                        <div className="bg-white p-4 rounded-lg border border-slate-200">
-                          <p className="text-sm font-medium text-slate-700 mb-2">Client Secret</p>
-                          <code className="text-xs font-mono text-slate-600 bg-slate-50 px-2 py-1 rounded">
+                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                          <div className="flex items-center space-x-2 mb-2">
+                            <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                            <p className="text-sm font-medium text-slate-700">Client Secret</p>
+                          </div>
+                          <code className="text-xs font-mono text-slate-600 bg-white px-3 py-2 rounded-lg border border-slate-200 block">
                             {client.clientSecret.substring(0, 8)}...
                           </code>
                         </div>
                       </div>
                       
-                      <div className="mb-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
-                        <div className="flex items-start space-x-2">
-                          <svg className="w-4 h-4 text-blue-600 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          </svg>
+                      <div className="mb-6 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-4">
+                        <div className="flex items-start space-x-3">
+                          <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center mt-0.5">
+                            <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                          </div>
                           <div>
-                            <p className="text-sm font-medium text-blue-900">OAuth Callbacks</p>
+                            <p className="text-sm font-semibold text-blue-900">OAuth Configuration</p>
                             <p className="text-xs text-blue-700 mt-1">
-                              Redirect URIs are automatically configured for your application's OAuth flow.
+                              Redirect URIs are automatically configured for your application's OAuth flow. No manual setup required.
                             </p>
                           </div>
                         </div>
                       </div>
                       
-                      <div className="flex items-center justify-between pt-4 border-t border-slate-200">
+                      <div className="flex items-center justify-between pt-6 border-t border-slate-200">
                         <div className="flex space-x-3">
                           <Link
                             href={`/oauth/authorize?client_id=${client.clientId}&redirect_uri=${encodeURIComponent(callbackUrl)}&response_type=code&scope=api:read`}
-                            className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 transition-colors font-medium"
+                            className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-2 rounded-xl text-sm hover:from-blue-700 hover:to-indigo-700 transition-all font-medium shadow-lg hover:shadow-xl transform hover:scale-105"
                           >
                             Test OAuth Flow
                           </Link>
                           <Link
                             href={`/playground`}
-                            className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-green-700 transition-colors font-medium"
+                            className="bg-gradient-to-r from-green-600 to-emerald-600 text-white px-6 py-2 rounded-xl text-sm hover:from-green-700 hover:to-emerald-700 transition-all font-medium shadow-lg hover:shadow-xl transform hover:scale-105"
                           >
                             Try API
                           </Link>
@@ -309,11 +327,18 @@ export default async function DashboardPage() {
           {/* Sidebar */}
           <div className="space-y-6">
             {/* Create New Client */}
-            <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-6">
-              <h2 className="text-xl font-semibold text-slate-900 mb-6">
-                Create New Client
-              </h2>
-              <form action={createClient} className="space-y-4">
+            <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-6">
+              <div className="flex items-center space-x-3 mb-6">
+                <div className="w-10 h-10 bg-gradient-to-r from-blue-100 to-indigo-100 rounded-xl flex items-center justify-center">
+                  <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                  </svg>
+                </div>
+                <h2 className="text-xl font-semibold text-slate-900">
+                  Create New Client
+                </h2>
+              </div>
+              <form action={createClient} className="space-y-6">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-2">
                     Application Name
@@ -322,20 +347,22 @@ export default async function DashboardPage() {
                     type="text"
                     name="name"
                     required
-                    className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 placeholder-slate-400"
+                    className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 placeholder-slate-400 transition-all"
                     placeholder="My Application"
                   />
                 </div>
                 
-                <div className="bg-slate-50 rounded-lg p-4 border border-slate-200">
-                  <div className="flex items-start space-x-2">
-                    <svg className="w-4 h-4 text-slate-600 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-200">
+                  <div className="flex items-start space-x-3">
+                    <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center mt-0.5">
+                      <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
                     <div>
-                      <p className="text-sm font-medium text-slate-700">OAuth Configuration</p>
-                      <p className="text-xs text-slate-500 mt-1">
-                        Redirect URIs are automatically configured for your OAuth flow. No manual setup required.
+                      <p className="text-sm font-semibold text-blue-900">Auto-Configuration</p>
+                      <p className="text-xs text-blue-700 mt-1">
+                        Redirect URIs and OAuth settings are automatically configured. Your client will be ready to use immediately after creation.
                       </p>
                     </div>
                   </div>
@@ -343,7 +370,7 @@ export default async function DashboardPage() {
                 
                 <button
                   type="submit"
-                  className="w-full bg-blue-600 text-white py-3 px-4 rounded-xl hover:bg-blue-700 transition-colors font-medium"
+                  className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3 px-4 rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all font-medium shadow-lg hover:shadow-xl transform hover:scale-105"
                 >
                   Create Client
                 </button>
