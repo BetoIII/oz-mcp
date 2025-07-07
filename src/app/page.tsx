@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -13,6 +13,7 @@ import {
   Shield,
   Copy,
   CheckCircle,
+  XCircle,
   Star,
   ArrowRight,
   Clock,
@@ -29,33 +30,102 @@ export default function HomePage() {
   const { data: session } = useSession()
   const [searchValue, setSearchValue] = useState("")
   const [searchCount, setSearchCount] = useState(0)
-  const [searchResult, setSearchResult] = useState<any>(null)
+  const [searchResult, setSearchResult] = useState<{
+    address: string;
+    isOpportunityZone: boolean;
+    tractId: string;
+    confidence?: string;
+    queryTime?: string;
+    method?: string;
+    error?: string;
+  } | null>(null)
   const [isSearching, setIsSearching] = useState(false)
+  const [rateLimitInfo, setRateLimitInfo] = useState<{
+    isLimited: boolean;
+    resetTime?: number;
+  }>({ isLimited: false })
+
+  // Handle rate limit countdown
+  useEffect(() => {
+    if (!rateLimitInfo.isLimited || !rateLimitInfo.resetTime) return
+
+    const interval = setInterval(() => {
+      const timeLeft = rateLimitInfo.resetTime! - Date.now()
+      if (timeLeft <= 0) {
+        setRateLimitInfo({ isLimited: false })
+        clearInterval(interval)
+      }
+    }, 1000)
+
+    return () => clearInterval(interval)
+  }, [rateLimitInfo.isLimited, rateLimitInfo.resetTime])
 
   const handleSearch = async () => {
-    if (!searchValue.trim() || searchCount >= 3) return
+    if (!searchValue.trim() || searchCount >= 3 || rateLimitInfo.isLimited) return
 
     setIsSearching(true)
+    setRateLimitInfo({ isLimited: false })
     
     try {
-      const response = await fetch(`/api/opportunity-zones/check?address=${encodeURIComponent(searchValue)}`)
-      const result = await response.json()
+      // Step 1: Geocode the address to get coordinates
+      const geocodeResponse = await fetch('/api/opportunity-zones/geocode', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ address: searchValue }),
+      })
+
+      // Check for rate limiting on geocode
+      if (geocodeResponse.status === 429) {
+        const retryAfter = geocodeResponse.headers.get('Retry-After')
+        const resetTime = retryAfter ? Date.now() + (parseInt(retryAfter) * 1000) : Date.now() + 60000
+        setRateLimitInfo({ isLimited: true, resetTime })
+        throw new Error('Rate limit exceeded. Please try again later.')
+      }
+
+      if (!geocodeResponse.ok) {
+        throw new Error(`Geocoding failed: ${geocodeResponse.status}`)
+      }
+
+      const geocodeData = await geocodeResponse.json()
+      
+      // Step 2: Check opportunity zone status using coordinates
+      const ozResponse = await fetch(`/api/opportunity-zones/check?lat=${geocodeData.latitude}&lon=${geocodeData.longitude}`)
+      
+      // Check for rate limiting on opportunity zone check
+      if (ozResponse.status === 429) {
+        const retryAfter = ozResponse.headers.get('Retry-After')
+        const resetTime = retryAfter ? Date.now() + (parseInt(retryAfter) * 1000) : Date.now() + 60000
+        setRateLimitInfo({ isLimited: true, resetTime })
+        throw new Error('Rate limit exceeded. Please try again later.')
+      }
+      
+      if (!ozResponse.ok) {
+        throw new Error(`Opportunity zone check failed: ${ozResponse.status}`)
+      }
+
+      const ozData = await ozResponse.json()
       
       setSearchResult({
-        address: searchValue,
-        isOpportunityZone: result.isOpportunityZone,
-        tractId: result.tractId || "N/A",
-        confidence: result.confidence || "High",
+        address: geocodeData.displayName || searchValue,
+        isOpportunityZone: ozData.isInOpportunityZone,
+        tractId: ozData.opportunityZoneId || "N/A",
+        confidence: ozData.performance?.info ? "High" : "Medium",
+        queryTime: ozData.metadata?.queryTime || "N/A",
+        method: ozData.metadata?.method || "unknown"
       })
       setSearchCount((prev) => prev + 1)
     } catch (error) {
       console.error('Search error:', error)
-      // Fallback to mock data for demo
+      
+      // Show user-friendly error message
       setSearchResult({
         address: searchValue,
-        isOpportunityZone: Math.random() > 0.5,
-        tractId: "12345.67",
-        confidence: "High",
+        isOpportunityZone: false,
+        tractId: "Error",
+        confidence: "Error",
+        error: error instanceof Error ? error.message : 'Search failed. Please try again.'
       })
       setSearchCount((prev) => prev + 1)
     }
@@ -158,27 +228,74 @@ export default function HomePage() {
               />
               <Button
                 onClick={handleSearch}
-                disabled={!searchValue.trim() || searchCount >= 3 || isSearching}
+                disabled={!searchValue.trim() || searchCount >= 3 || isSearching || rateLimitInfo.isLimited}
                 className="px-6"
               >
-                {isSearching ? "Checking..." : "Check OZ Status"}
+                {isSearching ? "Checking..." : 
+                 rateLimitInfo.isLimited ? "Rate Limited" :
+                 "Check OZ Status"}
               </Button>
             </div>
 
+            {rateLimitInfo.isLimited && (
+              <div className="mt-4 rounded-lg border border-orange-200 bg-orange-50 p-4 text-center">
+                <div className="flex items-center justify-center space-x-2 mb-2">
+                  <Clock className="h-5 w-5 text-orange-600" />
+                  <span className="font-medium text-orange-800">Rate Limit Active</span>
+                </div>
+                <p className="text-sm text-orange-700">
+                  Too many requests. Please wait before searching again.
+                </p>
+                {rateLimitInfo.resetTime && (
+                  <p className="text-xs text-orange-600 mt-1">
+                    Reset in: {Math.ceil((rateLimitInfo.resetTime - Date.now()) / 1000)}s
+                  </p>
+                )}
+              </div>
+            )}
+
             {searchResult && (
               <div className="mt-4 rounded-lg border bg-muted/50 p-4">
-                <div className="flex items-center justify-between">
+                {searchResult.error ? (
                   <div className="flex items-center space-x-2">
-                    <CheckCircle className="h-5 w-5 text-green-600" />
-                    <span className="font-medium">
-                      {searchResult.isOpportunityZone ? "✅ Opportunity Zone" : "❌ Not an Opportunity Zone"}
-                    </span>
+                    <XCircle className="h-5 w-5 text-red-500" />
+                    <span className="font-medium text-red-700">Search Error</span>
                   </div>
-                  <Badge variant="secondary">Tract: {searchResult.tractId}</Badge>
+                ) : (
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      {searchResult.isOpportunityZone ? (
+                        <CheckCircle className="h-5 w-5 text-green-600" />
+                      ) : (
+                        <XCircle className="h-5 w-5 text-gray-500" />
+                      )}
+                      <span className="font-medium">
+                        {searchResult.isOpportunityZone ? "✅ Opportunity Zone" : "❌ Not an Opportunity Zone"}
+                      </span>
+                    </div>
+                    <Badge variant="secondary">
+                      {searchResult.tractId !== "N/A" ? `Zone: ${searchResult.tractId}` : "No Zone ID"}
+                    </Badge>
+                  </div>
+                )}
+                <div className="mt-2 space-y-1">
+                  <p className="text-sm text-muted-foreground">
+                    <strong>Address:</strong> {searchResult.address}
+                  </p>
+                  {searchResult.error ? (
+                    <p className="text-sm text-red-600">
+                      <strong>Error:</strong> {searchResult.error}
+                    </p>
+                  ) : (
+                    <>
+                      {searchResult.queryTime && (
+                        <p className="text-sm text-muted-foreground">
+                          <strong>Query Time:</strong> {searchResult.queryTime} • <strong>Method:</strong> {searchResult.method}
+                        </p>
+                      )}
+                    </>
+                  )}
                 </div>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  Address: {searchResult.address} • Confidence: {searchResult.confidence}
-                </p>
               </div>
             )}
 
