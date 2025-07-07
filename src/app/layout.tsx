@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { auth } from "./auth";
 import { SessionProvider } from "next-auth/react";
+import { Analytics } from '@vercel/analytics/react';
+import { SpeedInsights } from '@vercel/speed-insights/next';
 
 export const metadata: Metadata = {
   title: "Opportunity Zone MCP Server",
@@ -73,6 +75,8 @@ export default async function RootLayout({
         <SessionProvider session={session}>
           {children}
         </SessionProvider>
+        <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );
