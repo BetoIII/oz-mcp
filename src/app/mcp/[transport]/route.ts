@@ -205,12 +205,18 @@ const handler = async (req: Request) => {
         {},
         async () => {
           try {
-            const metrics = opportunityZoneService.getCacheMetrics();
+            const metrics = await opportunityZoneService.getCacheMetricsWithDbCheck();
             const geocodingStats = await geocodingService.getCacheStats();
+            
+            // Determine actual service readiness
+            const isServiceReady = metrics.isInitialized || (metrics.dbHasData && !metrics.isInitializing);
             
             const responseText = [
               "=== Opportunity Zone Service Status ===",
-              `Initialized: ${metrics.isInitialized ? '✅ Yes' : '❌ No'}`,
+              `Initialized: ${isServiceReady ? '✅ Yes' : '❌ No'}`,
+              `Cache loaded: ${metrics.isInitialized ? '✅ Yes' : '❌ No'}`,
+              `Database has data: ${metrics.dbHasData ? '✅ Yes' : '❌ No'}`,
+              `Initializing: ${metrics.isInitializing ? '⏳ Yes' : '✅ No'}`,
               `Last updated: ${metrics.lastUpdated?.toISOString() || 'Never'}`,
               `Next refresh due: ${metrics.nextRefreshDue?.toISOString() || 'Unknown'}`,
               `Feature count: ${metrics.featureCount || 0}`,
