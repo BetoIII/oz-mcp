@@ -121,7 +121,7 @@ export function Navbar({ variant = 'default', title, icon }: NavbarProps) {
                 </Button>
               </div>
             ) : (
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-3">
                 <Button
                   variant="outline"
                   size="sm"
@@ -131,9 +131,10 @@ export function Navbar({ variant = 'default', title, icon }: NavbarProps) {
                 </Button>
                 <Button
                   size="sm"
-                  onClick={handleSignIn}
+                  variant="default"
+                  onClick={() => router.push('/playground')}
                 >
-                  Get Started
+                  Try for Free
                 </Button>
               </div>
             )}
