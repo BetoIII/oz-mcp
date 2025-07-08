@@ -1,40 +1,45 @@
-import { auth } from '@/app/auth';
+import { requireAuth, DatabaseConnectionError } from '@/lib/auth-utils';
 import { prisma } from '@/app/prisma';
 import { redirect } from 'next/navigation';
 import { randomBytes } from 'crypto';
 import Link from 'next/link';
 import DeleteClientButton from './components/DeleteClientButton';
+import { DatabaseError } from '@/components/DatabaseError';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { Copy, ExternalLink, Key, Trash2, User, Shield, Clock, Database } from 'lucide-react';
+import { Copy, ExternalLink, Key, Trash2, User, Shield, Clock, Database, Plus } from 'lucide-react';
 import { config } from '@/lib/utils';
 import { Footer } from "@/components/Footer"
+import { DashboardClient } from './DashboardClient';
 
 export default async function DashboardPage() {
-  const session = await auth();
-
-  if (!session || !session.user || !session.user.id) {
-    redirect('/');
+  let session;
+  
+  try {
+    session = await requireAuth();
+  } catch (error) {
+    if (error instanceof DatabaseConnectionError) {
+      return <DatabaseError message={error.message} />;
+    }
+    // Other errors will be handled by requireAuth (redirects, etc.)
+    throw error;
   }
 
   const clients = await prisma.client.findMany({
     where: {
-      OR: [
-        { userId: session.user.id },
-        { userId: null } // Include public clients the user created
-      ]
+      userId: session.user!.id
     },
     include: {
       accessTokens: {
-        where: { userId: session.user.id },
+        where: { userId: session.user!.id },
         orderBy: { createdAt: 'desc' }
       },
       authCodes: {
-        where: { userId: session.user.id },
+        where: { userId: session.user!.id },
         orderBy: { createdAt: 'desc' }
       }
     },
@@ -42,7 +47,7 @@ export default async function DashboardPage() {
   });
 
   const userTokens = await prisma.accessToken.findMany({
-    where: { userId: session.user.id },
+    where: { userId: session.user!.id },
     include: { client: true },
     orderBy: { createdAt: 'desc' }
   });
@@ -50,11 +55,8 @@ export default async function DashboardPage() {
   async function createClient(formData: FormData) {
     'use server';
     
-    const session = await auth();
-    if (!session?.user?.id) {
-      throw new Error('Not authenticated');
-    }
-
+    const session = await requireAuth();
+    
     const name = formData.get('name') as string;
     
     if (!name) {
@@ -74,7 +76,7 @@ export default async function DashboardPage() {
         name,
         redirectUris: defaultRedirectUris,
         clientSecret,
-        userId: session.user.id,
+        userId: session.user!.id,
       },
     });
 
@@ -84,17 +86,14 @@ export default async function DashboardPage() {
   async function deleteClient(formData: FormData) {
     'use server';
     
-    const session = await auth();
-    if (!session?.user?.id) {
-      throw new Error('Not authenticated');
-    }
+    const session = await requireAuth();
 
     const clientId = formData.get('clientId') as string;
     
     const client = await prisma.client.findFirst({
       where: {
         id: clientId,
-        userId: session.user.id
+        userId: session.user!.id
       }
     });
 
@@ -109,20 +108,68 @@ export default async function DashboardPage() {
     redirect('/dashboard');
   }
 
+  async function createApiKey(formData: FormData) {
+    'use server';
+    
+    const session = await requireAuth();
+    const clientId = formData.get('clientId') as string;
+    
+    const client = await prisma.client.findFirst({
+      where: {
+        id: clientId,
+        userId: session.user!.id
+      }
+    });
+
+    if (!client) {
+      throw new Error('Client not found or unauthorized');
+    }
+
+    // Redirect to OAuth authorization flow for API key creation
+    const authUrl = new URL('/oauth/authorize', config.baseUrl);
+    authUrl.searchParams.set('client_id', client.clientId);
+    authUrl.searchParams.set('redirect_uri', client.redirectUris[0]); // Use first registered redirect URI
+    authUrl.searchParams.set('response_type', 'code');
+    authUrl.searchParams.set('state', randomBytes(16).toString('hex')); // CSRF protection
+
+    redirect(authUrl.toString());
+  }
+
+  async function deleteApiKey(formData: FormData) {
+    'use server';
+    
+    const session = await requireAuth();
+    const tokenId = formData.get('tokenId') as string;
+    
+    const token = await prisma.accessToken.findFirst({
+      where: {
+        id: tokenId,
+        userId: session.user!.id
+      }
+    });
+
+    if (!token) {
+      throw new Error('API key not found or unauthorized');
+    }
+
+    await prisma.accessToken.delete({
+      where: { id: tokenId }
+    });
+
+    redirect('/dashboard');
+  }
+
   async function revokeToken(formData: FormData) {
     'use server';
     
-    const session = await auth();
-    if (!session?.user?.id) {
-      throw new Error('Not authenticated');
-    }
+    const session = await requireAuth();
 
     const tokenId = formData.get('tokenId') as string;
     
     const token = await prisma.accessToken.findFirst({
       where: {
         id: tokenId,
-        userId: session.user.id
+        userId: session.user!.id
       }
     });
 
@@ -141,46 +188,23 @@ export default async function DashboardPage() {
   const callbackUrl = `${config.baseUrl}/oauth/callback`;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50">
-      {/* Header */}
-      <header className="sticky top-0 z-50 w-full border-b bg-white/80 backdrop-blur-md">
-        <div className="container mx-auto flex h-16 items-center justify-between px-4">
-          <div className="flex items-center space-x-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600">
-              <Database className="h-5 w-5 text-white" />
-            </div>
-            <span className="text-xl font-bold">Developer Dashboard</span>
-          </div>
-          <nav className="flex items-center space-x-6">
-            <Link href="/playground" className="text-sm font-medium hover:text-blue-600">
-              Playground
-            </Link>
-            <Link href="/docs/oauth-flow" className="text-sm font-medium hover:text-blue-600">
-              Docs
-            </Link>
-            <Link href="/">
-              <Button size="sm">Home</Button>
-            </Link>
-          </nav>
-        </div>
-      </header>
-
+    <DashboardClient>
       <div className="container mx-auto px-4 py-8">
         {/* Welcome Section */}
         <Card className="mb-8 bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-100">
           <CardContent className="p-8">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-4">
-                {session.user.image && (
+                {session.user!.image && (
                   <img 
-                    src={session.user.image} 
-                    alt={session.user.name || "User"} 
+                    src={session.user!.image} 
+                    alt={session.user!.name || "User"} 
                     className="w-16 h-16 rounded-full border-2 border-blue-200"
                   />
                 )}
                 <div>
                   <h1 className="text-3xl font-bold text-slate-900">
-                    Welcome, {session.user.name?.split(' ')[0]}!
+                    Welcome, {session.user!.name?.split(' ')[0]}!
                   </h1>
                   <p className="text-slate-600 mt-1">
                     Manage your OAuth clients and access tokens
@@ -243,7 +267,7 @@ export default async function DashboardPage() {
                           <div className="flex items-center justify-between">
                             <CardTitle className="text-lg">{client.name}</CardTitle>
                             <Badge variant="secondary">
-                              {client.accessTokens.length} token{client.accessTokens.length !== 1 ? 's' : ''}
+                              {client.accessTokens.length} API key{client.accessTokens.length !== 1 ? 's' : ''}
                             </Badge>
                           </div>
                         </CardHeader>
@@ -273,15 +297,52 @@ export default async function DashboardPage() {
                             </div>
                           </div>
 
-                          <div>
-                            <Label className="text-xs text-slate-500">REDIRECT URIS</Label>
-                            <div className="mt-1 space-y-1">
-                              {client.redirectUris.map((uri, index) => (
-                                <code key={index} className="text-xs bg-slate-100 px-2 py-1 rounded block font-mono">
-                                  {uri}
-                                </code>
-                              ))}
+                          {/* API Keys Section */}
+                          <div className="pt-4 border-t border-slate-200">
+                            <div className="flex items-center justify-between mb-3">
+                              <Label className="text-sm font-medium text-slate-700">API Keys</Label>
+                              <form action={createApiKey}>
+                                <input type="hidden" name="clientId" value={client.id} />
+                                <Button size="sm" variant="outline" className="h-8">
+                                  <Plus className="h-3 w-3 mr-1" />
+                                  Create API Key
+                                </Button>
+                              </form>
                             </div>
+                            
+                            {client.accessTokens.length === 0 ? (
+                              <div className="text-center py-4 bg-slate-50 rounded-lg">
+                                <Key className="h-6 w-6 text-slate-400 mx-auto mb-2" />
+                                <p className="text-sm text-slate-500">No API keys created</p>
+                                <p className="text-xs text-slate-400">Create your first API key above</p>
+                              </div>
+                            ) : (
+                              <div className="space-y-2">
+                                {client.accessTokens.map((token) => (
+                                  <div key={token.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
+                                    <div className="flex-1">
+                                      <div className="flex items-center space-x-2">
+                                        <code className="text-xs bg-slate-200 px-2 py-1 rounded font-mono">
+                                          {token.token.substring(0, 8)}...{token.token.substring(token.token.length - 8)}
+                                        </code>
+                                        <Button size="sm" variant="outline" className="h-6 w-6 p-0">
+                                          <Copy className="h-3 w-3" />
+                                        </Button>
+                                      </div>
+                                      <p className="text-xs text-slate-500 mt-1">
+                                        Created {new Date(token.createdAt).toLocaleDateString()}
+                                      </p>
+                                    </div>
+                                    <form action={deleteApiKey}>
+                                      <input type="hidden" name="tokenId" value={token.id} />
+                                      <Button size="sm" variant="outline" className="h-7 w-7 p-0 text-red-600 hover:bg-red-50">
+                                        <Trash2 className="h-3 w-3" />
+                                      </Button>
+                                    </form>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                           </div>
 
                           <div className="flex items-center justify-between pt-2">
@@ -315,61 +376,57 @@ export default async function DashboardPage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex items-center space-x-3">
-                  {session.user.image && (
+                  {session.user!.image && (
                     <img 
-                      src={session.user.image} 
-                      alt={session.user.name || "User"} 
+                      src={session.user!.image} 
+                      alt={session.user!.name || "User"} 
                       className="w-10 h-10 rounded-full"
                     />
                   )}
                   <div>
-                    <p className="font-medium">{session.user.name}</p>
-                    <p className="text-sm text-slate-600">{session.user.email}</p>
+                    <p className="font-medium">{session.user!.name}</p>
+                    <p className="text-sm text-slate-600">{session.user!.email}</p>
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Access Tokens */}
+            {/* Access Tokens Summary */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center space-x-2">
                   <Key className="h-5 w-5" />
-                  <span>Access Tokens</span>
+                  <span>API Key Summary</span>
                 </CardTitle>
                 <CardDescription>
-                  Active tokens for API access
+                  Total active API keys across all clients
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 {userTokens.length === 0 ? (
                   <div className="text-center py-4">
                     <Key className="h-8 w-8 text-slate-400 mx-auto mb-2" />
-                    <p className="text-sm text-slate-500">No active tokens</p>
+                    <p className="text-sm text-slate-500">No active API keys</p>
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {userTokens.slice(0, 3).map((token) => (
-                      <div key={token.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
-                        <div>
-                          <p className="text-sm font-medium">{token.client.name}</p>
-                          <p className="text-xs text-slate-500">
-                            Created {new Date(token.createdAt).toLocaleDateString()}
-                          </p>
+                    <div className="text-center">
+                      <p className="text-2xl font-bold text-blue-600">{userTokens.length}</p>
+                      <p className="text-sm text-slate-500">Total API Keys</p>
+                    </div>
+                    <div className="space-y-2">
+                      {Object.entries(
+                        userTokens.reduce((acc, token) => {
+                          acc[token.client.name] = (acc[token.client.name] || 0) + 1;
+                          return acc;
+                        }, {} as Record<string, number>)
+                      ).map(([clientName, count]) => (
+                        <div key={clientName} className="flex justify-between text-sm">
+                          <span className="text-slate-600">{clientName}</span>
+                          <span className="font-medium">{count}</span>
                         </div>
-                        <form action={revokeToken}>
-                          <input type="hidden" name="tokenId" value={token.id} />
-                          <Button size="sm" variant="outline" className="h-7 w-7 p-0">
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
-                        </form>
-                      </div>
-                    ))}
-                    {userTokens.length > 3 && (
-                      <p className="text-xs text-slate-500 text-center">
-                        +{userTokens.length - 3} more tokens
-                      </p>
-                    )}
+                      ))}
+                    </div>
                   </div>
                 )}
               </CardContent>
@@ -400,6 +457,6 @@ export default async function DashboardPage() {
       </div>
 
       <Footer />
-    </div>
+    </DashboardClient>
   );
 }

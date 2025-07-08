@@ -25,6 +25,7 @@ import {
 import Link from "next/link"
 import { motion } from "framer-motion"
 import { Footer } from "@/components/Footer"
+import { Navbar } from "@/components/Navbar"
 
 export default function HomePage() {
   const [searchValue, setSearchValue] = useState("")
@@ -36,6 +37,7 @@ export default function HomePage() {
     confidence?: string;
     queryTime?: string;
     method?: string;
+    coordinates?: { lat: number; lon: number };
     error?: string;
   } | null>(null)
   const [isSearching, setIsSearching] = useState(false)
@@ -44,6 +46,48 @@ export default function HomePage() {
     resetTime?: number;
   }>({ isLimited: false })
 
+  // Function to parse MCP-style response text
+  const parseOZResponse = (text: string) => {
+    try {
+      // Extract address and coordinates
+      const addressMatch = text.match(/Address "([^"]+)" \(([^,]+), ([^)]+)\)/);
+      if (!addressMatch) return null;
+
+      const address = addressMatch[1];
+      const lat = parseFloat(addressMatch[2]);
+      const lon = parseFloat(addressMatch[3]);
+
+      // Check if in opportunity zone
+      const isInOZ = text.includes('is in an opportunity zone') && !text.includes('opportunity zone: null');
+      
+      // Extract zone ID
+      let zoneId = null;
+      if (isInOZ) {
+        const zoneMatch = text.match(/Zone ID: (\d+)/);
+        if (zoneMatch) {
+          zoneId = zoneMatch[1];
+        }
+      }
+
+      // Extract metadata
+      const methodMatch = text.match(/method: (\w+)/);
+      const dataVersionMatch = text.match(/Data version: ([^\n]+)/);
+
+      return {
+        address,
+        isOpportunityZone: isInOZ,
+        tractId: zoneId || "N/A",
+        coordinates: { lat, lon },
+        method: methodMatch?.[1] || "unknown",
+        confidence: isInOZ ? "High" : "High", // Assume high confidence for parsed results
+        queryTime: dataVersionMatch?.[1] ? new Date(dataVersionMatch[1]).toISOString() : new Date().toISOString()
+      };
+    } catch (error) {
+      console.error('Error parsing response:', error);
+      return null;
+    }
+  };
+
   const handleSearch = async () => {
     if (!searchValue.trim() || searchCount >= 3 || rateLimitInfo.isLimited) return
 
@@ -51,33 +95,10 @@ export default function HomePage() {
     setRateLimitInfo({ isLimited: false })
     
     try {
-      // Step 1: Geocode the address to get coordinates
-      const geocodeResponse = await fetch('/api/opportunity-zones/geocode', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ address: searchValue }),
-      })
-
-      // Check for rate limiting on geocode
-      if (geocodeResponse.status === 429) {
-        const retryAfter = geocodeResponse.headers.get('Retry-After')
-        const resetTime = retryAfter ? Date.now() + (parseInt(retryAfter) * 1000) : Date.now() + 60000
-        setRateLimitInfo({ isLimited: true, resetTime })
-        throw new Error('Rate limit exceeded. Please try again later.')
-      }
-
-      if (!geocodeResponse.ok) {
-        throw new Error(`Geocoding failed: ${geocodeResponse.status}`)
-      }
-
-      const geocodeData = await geocodeResponse.json()
+      // Use the MCP-style check with address parameter
+      const ozResponse = await fetch(`/api/opportunity-zones/check?address=${encodeURIComponent(searchValue)}&format=mcp`)
       
-      // Step 2: Check opportunity zone status using coordinates
-      const ozResponse = await fetch(`/api/opportunity-zones/check?lat=${geocodeData.latitude}&lon=${geocodeData.longitude}`)
-      
-      // Check for rate limiting on opportunity zone check
+      // Check for rate limiting
       if (ozResponse.status === 429) {
         const retryAfter = ozResponse.headers.get('Retry-After')
         const resetTime = retryAfter ? Date.now() + (parseInt(retryAfter) * 1000) : Date.now() + 60000
@@ -91,19 +112,68 @@ export default function HomePage() {
 
       const ozData = await ozResponse.json()
       
+      // Check if response has MCP format
+      if (ozData.result?.content?.[0]?.text) {
+        // Parse MCP response
+        const parsed = parseOZResponse(ozData.result.content[0].text);
+        if (parsed) {
+          setSearchResult(parsed);
+          setSearchCount((prev) => prev + 1);
+          setIsSearching(false);
+          return;
+        }
+      }
+      
+      // Fallback: If not MCP format, try original API
+      const geocodeResponse = await fetch('/api/opportunity-zones/geocode', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ address: searchValue }),
+      })
+
+      if (geocodeResponse.status === 429) {
+        const retryAfter = geocodeResponse.headers.get('Retry-After')
+        const resetTime = retryAfter ? Date.now() + (parseInt(retryAfter) * 1000) : Date.now() + 60000
+        setRateLimitInfo({ isLimited: true, resetTime })
+        throw new Error('Rate limit exceeded. Please try again later.')
+      }
+
+      if (!geocodeResponse.ok) {
+        throw new Error(`Geocoding failed: ${geocodeResponse.status}`)
+      }
+
+      const geocodeData = await geocodeResponse.json()
+      
+      const ozResponse2 = await fetch(`/api/opportunity-zones/check?lat=${geocodeData.latitude}&lon=${geocodeData.longitude}`)
+      
+      if (ozResponse2.status === 429) {
+        const retryAfter = ozResponse2.headers.get('Retry-After')
+        const resetTime = retryAfter ? Date.now() + (parseInt(retryAfter) * 1000) : Date.now() + 60000
+        setRateLimitInfo({ isLimited: true, resetTime })
+        throw new Error('Rate limit exceeded. Please try again later.')
+      }
+      
+      if (!ozResponse2.ok) {
+        throw new Error(`Opportunity zone check failed: ${ozResponse2.status}`)
+      }
+
+      const ozData2 = await ozResponse2.json()
+      
       setSearchResult({
         address: geocodeData.displayName || searchValue,
-        isOpportunityZone: ozData.isInOpportunityZone,
-        tractId: ozData.opportunityZoneId || "N/A",
-        confidence: ozData.performance?.info ? "High" : "Medium",
-        queryTime: ozData.metadata?.queryTime || "N/A",
-        method: ozData.metadata?.method || "unknown"
+        isOpportunityZone: ozData2.isInOpportunityZone,
+        tractId: ozData2.opportunityZoneId || "N/A",
+        confidence: ozData2.performance?.info ? "High" : "Medium",
+        queryTime: ozData2.metadata?.queryTime || "N/A",
+        method: ozData2.metadata?.method || "unknown",
+        coordinates: { lat: geocodeData.latitude, lon: geocodeData.longitude }
       })
       setSearchCount((prev) => prev + 1)
     } catch (error) {
       console.error('Search error:', error)
       
-      // Show user-friendly error message
       setSearchResult({
         address: searchValue,
         isOpportunityZone: false,
@@ -121,31 +191,7 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50">
-      {/* Header */}
-      <header className="sticky top-0 z-50 w-full border-b bg-white/80 backdrop-blur-md">
-        <div className="container mx-auto flex h-16 items-center justify-between px-4">
-          <div className="flex items-center space-x-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600">
-              <MapPin className="h-5 w-5 text-white" />
-            </div>
-            <span className="text-xl font-bold">OZ-MCP</span>
-          </div>
-          <nav className="hidden md:flex items-center space-x-6">
-            <Link href="#pricing" className="text-sm font-medium hover:text-blue-600">
-              Pricing
-            </Link>
-            <Link href="/docs/oauth-flow" className="text-sm font-medium hover:text-blue-600">
-              Docs
-            </Link>
-            <Button variant="outline" size="sm" asChild>
-              <Link href="/dashboard">Dashboard</Link>
-            </Button>
-            <Button size="sm" asChild>
-              <Link href="/playground">Get API Key</Link>
-            </Button>
-          </nav>
-        </div>
-      </header>
+      <Navbar variant="default" />
 
       {/* Hero Section */}
       <section className="container mx-auto px-4 py-16 text-center">
@@ -408,7 +454,7 @@ export default function HomePage() {
       <section id="pricing" className="bg-white py-16">
         <div className="container mx-auto px-4">
           <div className="text-center">
-            <h2 className="mb-4 text-3xl font-bold">Simple, Transparent Pricing</h2>
+            <h2 className="mb-4 text-3xl font-bold">Simple, usage-based pricing</h2>
             <p className="mb-12 text-lg text-muted-foreground">
               Choose the plan that fits your needs. Upgrade or downgrade anytime.
             </p>
@@ -427,11 +473,11 @@ export default function HomePage() {
                 <ul className="space-y-2 text-sm">
                   <li className="flex items-center space-x-2">
                     <CheckCircle className="h-4 w-4 text-green-600" />
-                    <span>100 API calls/month</span>
+                    <span>15 lookups/month</span>
                   </li>
                   <li className="flex items-center space-x-2">
                     <CheckCircle className="h-4 w-4 text-green-600" />
-                    <span>Basic support</span>
+                    <span>No card required</span>
                   </li>
                   <li className="flex items-center space-x-2">
                     <CheckCircle className="h-4 w-4 text-green-600" />
@@ -450,14 +496,14 @@ export default function HomePage() {
                 <CardTitle>Pro</CardTitle>
                 <CardDescription>For active investors and professionals</CardDescription>
                 <div className="text-3xl font-bold">
-                  $29<span className="text-lg font-normal">/month</span>
+                  $9<span className="text-lg font-normal">/month</span>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
                 <ul className="space-y-2 text-sm">
                   <li className="flex items-center space-x-2">
                     <CheckCircle className="h-4 w-4 text-green-600" />
-                    <span>5,000 API calls/month</span>
+                    <span>500 lookups/month</span>
                   </li>
                   <li className="flex items-center space-x-2">
                     <CheckCircle className="h-4 w-4 text-green-600" />
@@ -483,14 +529,14 @@ export default function HomePage() {
                 <CardTitle>Scale</CardTitle>
                 <CardDescription>For high-volume applications</CardDescription>
                 <div className="text-3xl font-bold">
-                  $99<span className="text-lg font-normal">/month</span>
+                  $49<span className="text-lg font-normal">/month</span>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
                 <ul className="space-y-2 text-sm">
                   <li className="flex items-center space-x-2">
                     <CheckCircle className="h-4 w-4 text-green-600" />
-                    <span>25,000 API calls/month</span>
+                    <span>5,000 lookups/month</span>
                   </li>
                   <li className="flex items-center space-x-2">
                     <CheckCircle className="h-4 w-4 text-green-600" />
@@ -502,14 +548,20 @@ export default function HomePage() {
                   </li>
                   <li className="flex items-center space-x-2">
                     <CheckCircle className="h-4 w-4 text-green-600" />
-                    <span>White-label options</span>
+                    <span>Webhook notifications</span>
                   </li>
                 </ul>
                 <Button className="w-full" variant="outline" asChild>
-                  <Link href="/dashboard">Contact Sales</Link>
+                  <Link href="/dashboard">Upgrade to Scale</Link>
                 </Button>
               </CardContent>
             </Card>
+          </div>
+
+          <div className="mt-12 text-center">
+            <p className="text-lg text-muted-foreground">
+              Need higher volume or custom features? <Link href="/dashboard" className="text-blue-600 hover:underline font-medium">Contact us for Enterprise pricing</Link>
+            </p>
           </div>
         </div>
       </section>

@@ -1,9 +1,8 @@
 'use client';
 
-import { useEffect, useState, Suspense } from 'react';
+import { useEffect, useState, Suspense, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { Footer } from "@/components/Footer"
 
 // Force dynamic rendering since this page handles OAuth callbacks
 export const dynamic = 'force-dynamic';
@@ -14,6 +13,7 @@ function OAuthCallbackContent() {
   const [tokenResponse, setTokenResponse] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [showToast, setShowToast] = useState(false);
+  const processingRef = useRef(false);
 
   const copyToClipboard = async (text: string) => {
     try {
@@ -26,7 +26,14 @@ function OAuthCallbackContent() {
   };
 
   useEffect(() => {
+    // Prevent multiple executions
+    if (processingRef.current) {
+      return;
+    }
+
     const handleCallback = async () => {
+      processingRef.current = true;
+      
       const code = searchParams.get('code');
       const state = searchParams.get('state');
       const error = searchParams.get('error');
@@ -117,7 +124,7 @@ function OAuthCallbackContent() {
         // Store the access token (in a real app, you'd want to store this securely)
         localStorage.setItem('oauth_access_token', data.access_token);
         localStorage.setItem('oauth_token_type', data.token_type || 'Bearer');
-        localStorage.setItem('oauth_expires_in', data.expires_in?.toString() || '3600');
+        localStorage.setItem('oauth_expires_in', data.expires_in?.toString() || '31536000');
 
         // Clean up temporary OAuth parameters
         localStorage.removeItem('oauth_client_id');
@@ -151,7 +158,7 @@ function OAuthCallbackContent() {
             </div>
             <h1 className="text-2xl font-bold text-slate-900 mb-2">Processing Authorization</h1>
             <p className="text-slate-600">
-              Exchanging authorization code for access token...
+              Exchanging authorization code for API key...
             </p>
           </div>
         </div>
@@ -203,7 +210,7 @@ function OAuthCallbackContent() {
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
-            <span>Access token copied to clipboard!</span>
+            <span>API key copied to clipboard!</span>
           </div>
         )}
         
@@ -214,15 +221,15 @@ function OAuthCallbackContent() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
             </div>
-            <h1 className="text-2xl font-bold text-slate-900 mb-2">Authorization Successful!</h1>
+            <h1 className="text-2xl font-bold text-slate-900 mb-2">API Key Created Successfully!</h1>
             <p className="text-slate-600 mb-6">
-              Your application has been successfully authorized and you have received an access token.
+              Your application has been successfully authorized and you have received an API key.
             </p>
           </div>
 
           <div className="space-y-4">
             <div className="bg-gray-50 p-4 rounded-lg">
-              <h3 className="font-semibold text-gray-900 mb-4">Access Token Details</h3>
+              <h3 className="font-semibold text-gray-900 mb-4">API Key Details</h3>
               <div className="space-y-4 text-sm">
                 <div className="flex items-center justify-between">
                   <span className="text-gray-600">Token Type:</span>
@@ -230,11 +237,11 @@ function OAuthCallbackContent() {
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-gray-600">Expires In:</span>
-                  <code className="text-gray-800 bg-white px-3 py-1 rounded border">{tokenResponse?.expires_in || 3600}s</code>
+                  <code className="text-gray-800 bg-white px-3 py-1 rounded border">1 year</code>
                 </div>
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-gray-600">Access Token:</span>
+                    <span className="text-gray-600">API Key:</span>
                     <button
                       onClick={() => copyToClipboard(tokenResponse?.access_token || '')}
                       className="flex items-center space-x-2 text-blue-600 hover:text-blue-700 transition-colors"
@@ -260,7 +267,7 @@ function OAuthCallbackContent() {
               <ul className="space-y-2 text-sm text-blue-800">
                 <li className="flex items-start space-x-2">
                   <div className="w-2 h-2 bg-blue-600 rounded-full mt-2"></div>
-                  <span>Use the access token to make authenticated API requests</span>
+                  <span>Use the API key to make authenticated API requests</span>
                 </li>
                 <li className="flex items-start space-x-2">
                   <div className="w-2 h-2 bg-blue-600 rounded-full mt-2"></div>
@@ -268,7 +275,7 @@ function OAuthCallbackContent() {
                 </li>
                 <li className="flex items-start space-x-2">
                   <div className="w-2 h-2 bg-blue-600 rounded-full mt-2"></div>
-                  <span>The token will expire in {tokenResponse?.expires_in || 3600} seconds</span>
+                  <span>The API key will expire in 1 year</span>
                 </li>
               </ul>
             </div>
@@ -276,8 +283,14 @@ function OAuthCallbackContent() {
 
           <div className="mt-8 flex flex-col sm:flex-row gap-4">
             <Link 
-              href="/playground" 
+              href="/dashboard" 
               className="flex-1 bg-blue-600 text-white py-3 px-6 rounded-xl hover:bg-blue-700 transition-colors font-medium text-center"
+            >
+              Return to Dashboard
+            </Link>
+            <Link 
+              href="/playground" 
+              className="flex-1 bg-gray-100 text-gray-700 py-3 px-6 rounded-xl hover:bg-gray-200 transition-colors font-medium text-center"
             >
               Test API in Playground
             </Link>
@@ -290,7 +303,6 @@ function OAuthCallbackContent() {
           </div>
         </div>
 
-        <Footer />
         <style jsx>{`
           @keyframes fade-in {
             from {
