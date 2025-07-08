@@ -13,12 +13,12 @@ export const dynamic = 'force-dynamic';
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Opportunity Zone MCP Server",
-  description: "Secure, OAuth-protected MCP server providing geospatial opportunity zone data and geocoding services for AI applications.",
-  keywords: ["MCP", "Model Context Protocol", "Opportunity Zones", "Geocoding", "OAuth", "API", "AI", "Geospatial"],
-  authors: [{ name: "Opportunity Zone MCP Team" }],
-  creator: "Opportunity Zone MCP",
-  publisher: "Opportunity Zone MCP",
+  title: "OZ-MCP – Instant Opportunity Zone Check",
+  description: "Check any U.S. address for Qualified Opportunity Zone status in seconds. First 3 lookups free.",
+  keywords: ["Opportunity Zones", "OZ", "Tax Benefits", "Address Check", "Real Estate", "Investment", "QOZ"],
+  authors: [{ name: "OZ-MCP Team" }],
+  creator: "OZ-MCP",
+  publisher: "OZ-MCP",
   formatDetection: {
     email: false,
     address: false,
@@ -28,19 +28,32 @@ export const metadata: Metadata = {
   alternates: {
     canonical: '/',
   },
+  icons: {
+    icon: '/favicon.ico',
+    apple: '/apple-touch-icon.png',
+  },
   openGraph: {
-    title: "Opportunity Zone MCP Server",
-    description: "Secure, OAuth-protected MCP server providing geospatial opportunity zone data and geocoding services for AI applications.",
+    title: "OZ-MCP – Instant Opportunity Zone Check",
+    description: "Check any U.S. address for Qualified Opportunity Zone status in seconds. First 3 lookups free.",
     url: 'https://oz-mcp.vercel.app',
-    siteName: 'Opportunity Zone MCP Server',
+    siteName: 'OZ-MCP',
     locale: 'en_US',
     type: 'website',
+    images: [
+      {
+        url: '/og-image.png',
+        width: 1200,
+        height: 630,
+        alt: 'OZ-MCP – Instant Opportunity Zone Check',
+      },
+    ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: "Opportunity Zone MCP Server",
-    description: "Secure, OAuth-protected MCP server providing geospatial opportunity zone data and geocoding services for AI applications.",
+    title: "OZ-MCP – Instant Opportunity Zone Check",
+    description: "Check any U.S. address for Qualified Opportunity Zone status in seconds. First 3 lookups free.",
     creator: '@oz_mcp',
+    images: ['/og-image.png'],
   },
   robots: {
     index: true,
@@ -75,7 +88,9 @@ export default async function RootLayout({
   return (
     <html lang="en" className="h-full" suppressHydrationWarning>
       <head>
-        <link rel="icon" type="image/svg+xml" href="/favicon.ico" />
+        <link rel="icon" href="/favicon.ico" sizes="32x32" />
+        <link rel="icon" href="/favicon.ico" type="image/x-icon" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
         <meta name="theme-color" content="#2563eb" />
         <meta name="color-scheme" content="light dark" />
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />

@@ -2,11 +2,12 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { useSession, signIn, signOut } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
+import { UserAvatar } from '@/components/ui/user-avatar'
 import {
-  MapPin,
   User,
   LogOut,
   Settings,
@@ -42,17 +43,7 @@ export function Navbar({ variant = 'default', title, icon }: NavbarProps) {
 
   const getIcon = () => {
     if (icon) return icon
-    
-    switch (variant) {
-      case 'playground':
-        return <MapPin className="h-5 w-5 text-white" />
-      case 'dashboard':
-        return <Settings className="h-5 w-5 text-white" />
-      case 'docs':
-        return <MapPin className="h-5 w-5 text-white" />
-      default:
-        return <MapPin className="h-5 w-5 text-white" />
-    }
+    return <Image src="/oz-mcp-pin-icon.png" alt="OZ-MCP Logo" width={35} height={35} className="object-contain" />
   }
 
   const handleSignOut = async () => {
@@ -87,7 +78,7 @@ export function Navbar({ variant = 'default', title, icon }: NavbarProps) {
       <div className="container mx-auto flex h-16 items-center justify-between px-4">
         {/* Logo and Title */}
         <Link href="/" className="flex items-center space-x-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600">
+          <div className="flex items-center justify-center">
             {getIcon()}
           </div>
           <span className="text-xl font-bold">{getTitle()}</span>
@@ -111,13 +102,11 @@ export function Navbar({ variant = 'default', title, icon }: NavbarProps) {
               <div className="h-8 w-16 bg-gray-200 animate-pulse rounded" />
             ) : status === 'authenticated' ? (
               <div className="flex items-center space-x-3">
-                {session.user?.image && (
-                  <img
-                    src={session.user.image}
-                    alt={session.user.name || 'User'}
-                    className="w-8 h-8 rounded-full border border-gray-200"
-                  />
-                )}
+                <UserAvatar
+                  src={session.user?.image}
+                  name={session.user?.name}
+                  alt={session.user?.name || 'User'}
+                />
                 <span className="text-sm text-gray-600 hidden lg:inline">
                   {session.user?.name?.split(' ')[0]}
                 </span>
@@ -132,7 +121,7 @@ export function Navbar({ variant = 'default', title, icon }: NavbarProps) {
                 </Button>
               </div>
             ) : (
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-3">
                 <Button
                   variant="outline"
                   size="sm"
@@ -142,9 +131,10 @@ export function Navbar({ variant = 'default', title, icon }: NavbarProps) {
                 </Button>
                 <Button
                   size="sm"
-                  onClick={handleSignIn}
+                  variant="default"
+                  onClick={() => router.push('/playground')}
                 >
-                  Get Started
+                  Try for Free
                 </Button>
               </div>
             )}
@@ -187,13 +177,11 @@ export function Navbar({ variant = 'default', title, icon }: NavbarProps) {
               ) : status === 'authenticated' ? (
                 <div className="space-y-3">
                   <div className="flex items-center space-x-3">
-                    {session.user?.image && (
-                      <img
-                        src={session.user.image}
-                        alt={session.user.name || 'User'}
-                        className="w-8 h-8 rounded-full border border-gray-200"
-                      />
-                    )}
+                    <UserAvatar
+                      src={session.user?.image}
+                      name={session.user?.name}
+                      alt={session.user?.name || 'User'}
+                    />
                     <span className="text-sm text-gray-600">
                       {session.user?.name}
                     </span>

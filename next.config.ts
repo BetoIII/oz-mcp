@@ -8,6 +8,9 @@ const nextConfig: NextConfig = {
     // !! WARN !!
     ignoreBuildErrors: true,
   },
+  env: {
+    NEXT_PUBLIC_DEPLOYMENT_DATE: new Date().toISOString(),
+  },
 };
 
 export default nextConfig;

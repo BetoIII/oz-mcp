@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -21,6 +21,7 @@ import {
   Users,
   Bot,
   Play,
+  RefreshCw,
 } from "lucide-react"
 import Link from "next/link"
 import { motion } from "framer-motion"
@@ -39,12 +40,68 @@ export default function HomePage() {
     method?: string;
     coordinates?: { lat: number; lon: number };
     error?: string;
+    suggestion?: string;
+    examples?: string[];
   } | null>(null)
   const [isSearching, setIsSearching] = useState(false)
-  const [rateLimitInfo, setRateLimitInfo] = useState<{
-    isLimited: boolean;
-    resetTime?: number;
-  }>({ isLimited: false })
+  const [lockoutInfo, setLockoutInfo] = useState<{
+    isLocked: boolean;
+    lockedUntil?: string;
+    message?: string;
+  }>({ isLocked: false })
+
+  // Check if we're in development mode (client-side check)
+  const [isDevelopment, setIsDevelopment] = useState(false)
+  
+  useEffect(() => {
+    // Check if we're running on localhost or dev domain
+    const hostname = window.location.hostname
+    setIsDevelopment(hostname === 'localhost' || hostname === '127.0.0.1' || hostname.startsWith('192.168.'))
+  }, [])
+
+  // Check search status on page load
+  useEffect(() => {
+    const checkSearchStatus = async () => {
+      try {
+        const response = await fetch('/api/opportunity-zones/validate-search')
+        if (response.ok) {
+          const data = await response.json()
+          setSearchCount(data.searchCount)
+          setLockoutInfo({
+            isLocked: data.isLocked,
+            lockedUntil: data.lockedUntil,
+            message: data.isLocked ? 'You are locked out from free searches.' : undefined
+          })
+        }
+      } catch (error) {
+        console.error('Failed to check search status:', error)
+      }
+    }
+    checkSearchStatus()
+  }, [])
+
+  // Reset rate limit function (development only)
+  const resetRateLimit = async () => {
+    try {
+      const response = await fetch('/api/opportunity-zones/reset-limit', {
+        method: 'POST',
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        setSearchCount(0)
+        setLockoutInfo({
+          isLocked: false,
+          message: undefined
+        })
+        console.log('Rate limit reset successfully')
+      } else {
+        console.error('Failed to reset rate limit')
+      }
+    } catch (error) {
+      console.error('Error resetting rate limit:', error)
+    }
+  }
 
   // Function to parse MCP-style response text
   const parseOZResponse = (text: string) => {
@@ -89,28 +146,49 @@ export default function HomePage() {
   };
 
   const handleSearch = async () => {
-    if (!searchValue.trim() || searchCount >= 3 || rateLimitInfo.isLimited) return
+    if (!searchValue.trim() || lockoutInfo.isLocked) return
 
     setIsSearching(true)
-    setRateLimitInfo({ isLimited: false })
+    setLockoutInfo(prev => ({ ...prev, message: undefined }))
     
     try {
+      // Proceed directly with the search (validation is now handled in the check endpoint)
       // Use the MCP-style check with address parameter
       const ozResponse = await fetch(`/api/opportunity-zones/check?address=${encodeURIComponent(searchValue)}&format=mcp`)
       
-      // Check for rate limiting
+      // Handle search limit exceeded
       if (ozResponse.status === 429) {
-        const retryAfter = ozResponse.headers.get('Retry-After')
-        const resetTime = retryAfter ? Date.now() + (parseInt(retryAfter) * 1000) : Date.now() + 60000
-        setRateLimitInfo({ isLimited: true, resetTime })
-        throw new Error('Rate limit exceeded. Please try again later.')
+        const limitData = await ozResponse.json()
+        setLockoutInfo({
+          isLocked: true,
+          message: limitData.message || 'You\'ve used all 3 free searches. Create an account for unlimited searches.'
+        })
+        setSearchCount(limitData.searchCount || 3)
+        setIsSearching(false)
+        return
       }
       
       if (!ozResponse.ok) {
-        throw new Error(`Opportunity zone check failed: ${ozResponse.status}`)
+        const errorData = await ozResponse.json()
+        throw new Error(errorData.details || `Opportunity zone check failed: ${ozResponse.status}`)
       }
 
       const ozData = await ozResponse.json()
+      
+      // Handle address not found gracefully
+      if (ozData.addressNotFound) {
+        setSearchResult({
+          address: searchValue,
+          isOpportunityZone: false,
+          tractId: "Address Not Found",
+          confidence: "N/A",
+          error: ozData.message,
+          suggestion: ozData.suggestion,
+          examples: ozData.examples
+        })
+        setIsSearching(false)
+        return
+      }
       
       // Check if response has MCP format
       if (ozData.result?.content?.[0]?.text) {
@@ -118,7 +196,22 @@ export default function HomePage() {
         const parsed = parseOZResponse(ozData.result.content[0].text);
         if (parsed) {
           setSearchResult(parsed);
-          setSearchCount((prev) => prev + 1);
+          
+          // Update search count after successful search
+          try {
+            const statusResponse = await fetch('/api/opportunity-zones/validate-search')
+            if (statusResponse.ok) {
+              const statusData = await statusResponse.json()
+              setSearchCount(statusData.searchCount)
+              setLockoutInfo({
+                isLocked: statusData.isLocked,
+                lockedUntil: statusData.lockedUntil
+              })
+            }
+          } catch (statusError) {
+            console.error('Failed to update search status:', statusError)
+          }
+          
           setIsSearching(false);
           return;
         }
@@ -133,13 +226,6 @@ export default function HomePage() {
         body: JSON.stringify({ address: searchValue }),
       })
 
-      if (geocodeResponse.status === 429) {
-        const retryAfter = geocodeResponse.headers.get('Retry-After')
-        const resetTime = retryAfter ? Date.now() + (parseInt(retryAfter) * 1000) : Date.now() + 60000
-        setRateLimitInfo({ isLimited: true, resetTime })
-        throw new Error('Rate limit exceeded. Please try again later.')
-      }
-
       if (!geocodeResponse.ok) {
         throw new Error(`Geocoding failed: ${geocodeResponse.status}`)
       }
@@ -147,13 +233,6 @@ export default function HomePage() {
       const geocodeData = await geocodeResponse.json()
       
       const ozResponse2 = await fetch(`/api/opportunity-zones/check?lat=${geocodeData.latitude}&lon=${geocodeData.longitude}`)
-      
-      if (ozResponse2.status === 429) {
-        const retryAfter = ozResponse2.headers.get('Retry-After')
-        const resetTime = retryAfter ? Date.now() + (parseInt(retryAfter) * 1000) : Date.now() + 60000
-        setRateLimitInfo({ isLimited: true, resetTime })
-        throw new Error('Rate limit exceeded. Please try again later.')
-      }
       
       if (!ozResponse2.ok) {
         throw new Error(`Opportunity zone check failed: ${ozResponse2.status}`)
@@ -170,46 +249,74 @@ export default function HomePage() {
         method: ozData2.metadata?.method || "unknown",
         coordinates: { lat: geocodeData.latitude, lon: geocodeData.longitude }
       })
-      setSearchCount((prev) => prev + 1)
+      
+      // Update search count after successful search
+      try {
+        const statusResponse = await fetch('/api/opportunity-zones/validate-search')
+        if (statusResponse.ok) {
+          const statusData = await statusResponse.json()
+          setSearchCount(statusData.searchCount)
+          setLockoutInfo({
+            isLocked: statusData.isLocked,
+            lockedUntil: statusData.lockedUntil
+          })
+        }
+      } catch (statusError) {
+        console.error('Failed to update search status:', statusError)
+      }
+      
     } catch (error) {
       console.error('Search error:', error)
+      
+      const errorMessage = error instanceof Error ? error.message : 'Search failed. Please try again.'
+      const isAddressNotFound = errorMessage.includes('Address not found')
       
       setSearchResult({
         address: searchValue,
         isOpportunityZone: false,
-        tractId: "Error",
-        confidence: "Error",
-        error: error instanceof Error ? error.message : 'Search failed. Please try again.'
+        tractId: isAddressNotFound ? "Address Not Found" : "Error",
+        confidence: isAddressNotFound ? "N/A" : "Error",
+        error: isAddressNotFound 
+          ? 'Address not found' 
+          : errorMessage,
+        ...(isAddressNotFound && {
+          suggestion: 'Please check your address format and try again. Make sure to include city and state for U.S. addresses.',
+          examples: [
+            '123 Main Street, New York, NY',
+            '456 Oak Avenue, Los Angeles, CA 90210',
+            '789 Broadway, Chicago, IL'
+          ]
+        })
       })
-      setSearchCount((prev) => prev + 1)
     }
     
     setIsSearching(false)
   }
 
   const progressPercentage = (searchCount / 3) * 100
+  const remainingSearches = Math.max(0, 3 - searchCount)
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50">
       <Navbar variant="default" />
 
       {/* Hero Section */}
-      <section className="container mx-auto px-4 py-16 text-center">
+      <section className="container mx-auto px-4 py-20 text-center">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
-          <Badge className="mb-4 bg-blue-100 text-blue-700 hover:bg-blue-100">
+          <Badge className="mb-8 bg-blue-100 text-blue-700 hover:bg-blue-100">
             <Zap className="mr-1 h-3 w-3" />
             Instant Opportunity Zone Verification
           </Badge>
-          <h1 className="mb-6 text-4xl font-bold tracking-tight sm:text-6xl">
+          <h1 className="mb-10 text-4xl font-bold tracking-tight sm:text-6xl">
             Check Any U.S. Address for{" "}
             <span className="bg-gradient-to-r from-blue-600 to-green-600 bg-clip-text text-transparent">
-              Opportunity Zone Status
+              Opportunity Zone Eligibility
             </span>{" "}
             in Seconds
           </h1>
-          <p className="mx-auto mb-8 max-w-2xl text-xl text-muted-foreground">
-            Instantly verify U.S. Opportunity Zone eligibility for any address. Empower investors, CPAs, and PropTech
-            builders to identify lucrative, tax-advantaged deals with our lightning-fast API.
+          <p className="mx-auto mb-16 max-w-2xl text-xl text-muted-foreground">
+            Instantly verify Qualified Opportunity Zone (QOZ) eligibility for any U.S. address. Empowering investors, CPAs, and PropTech
+            builders with our lightning-fast API.
           </p>
         </motion.div>
 
@@ -222,27 +329,51 @@ export default function HomePage() {
         >
           <Card className="p-6 shadow-lg">
             <div className="mb-4 flex items-center justify-between">
-              <span className="text-sm font-medium">Free Trial</span>
+              <span className="text-lg font-medium">Try it for free!</span>  
               <div className="flex items-center space-x-2">
-                <span className="text-sm text-muted-foreground">{searchCount}/3 searches used</span>
+                <span className="text-sm text-muted-foreground">
+                  {lockoutInfo.isLocked 
+                    ? "Locked out" 
+                    : `${searchCount}/3 searches used`
+                  }
+                </span>
                 <Progress value={progressPercentage} className="w-20" />
+                {isDevelopment && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={resetRateLimit}
+                    className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
+                    title="Reset rate limit (Dev only)"
+                  >
+                    <RefreshCw className="h-3 w-3" />
+                  </Button>
+                )}
               </div>
             </div>
 
             <div className="flex space-x-2">
               <Input
-                placeholder="Enter any U.S. address (e.g., 123 Main St, New York, NY)"
+                placeholder={lockoutInfo.isLocked 
+                  ? "Locked out - Create account for unlimited searches" 
+                  : "Enter any U.S. address (e.g., 123 Main St, New York, NY)"
+                }
                 value={searchValue}
                 onChange={(e) => setSearchValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !lockoutInfo.isLocked && searchValue.trim() && !isSearching) {
+                    handleSearch()
+                  }
+                }}
                 className="flex-1"
-                disabled={searchCount >= 3 || rateLimitInfo.isLimited}
+                disabled={lockoutInfo.isLocked}
               />
               <Button
                 onClick={handleSearch}
-                disabled={!searchValue.trim() || searchCount >= 3 || isSearching || rateLimitInfo.isLimited}
+                disabled={!searchValue.trim() || lockoutInfo.isLocked || isSearching}
                 className="px-6"
               >
-                {isSearching ? "Checking..." : "Check OZ Status"}
+                {isSearching ? "Checking..." : "Search QOZs"}
               </Button>
             </div>
 
@@ -250,18 +381,30 @@ export default function HomePage() {
               <motion.div
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="mt-4 rounded-lg border bg-muted/50 p-4"
+                className={`mt-4 rounded-lg border p-4 ${
+                  searchResult.tractId === "Address Not Found" 
+                    ? "border-amber-200 bg-amber-50/50" 
+                    : searchResult.error 
+                      ? "border-red-200 bg-red-50/50"
+                      : "border-green-200 bg-muted/50"
+                }`}
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
                     {searchResult.error ? (
-                      <XCircle className="h-5 w-5 text-red-600" />
+                      searchResult.tractId === "Address Not Found" ? (
+                        <MapPin className="h-5 w-5 text-amber-600" />
+                      ) : (
+                        <XCircle className="h-5 w-5 text-red-600" />
+                      )
                     ) : (
                       <CheckCircle className="h-5 w-5 text-green-600" />
                     )}
                     <span className="font-medium">
                       {searchResult.error 
-                        ? searchResult.error
+                        ? searchResult.tractId === "Address Not Found" 
+                          ? "⚠️ Address Not Found"
+                          : searchResult.error
                         : searchResult.isOpportunityZone 
                           ? "✅ Opportunity Zone" 
                           : "❌ Not an Opportunity Zone"
@@ -272,6 +415,25 @@ export default function HomePage() {
                     <Badge variant="secondary">Zone: {searchResult.tractId}</Badge>
                   )}
                 </div>
+                
+                {searchResult.tractId === "Address Not Found" && searchResult.suggestion && (
+                  <div className="mt-3 space-y-2">
+                    <p className="text-sm text-amber-700 bg-amber-50 p-2 rounded">
+                      {searchResult.suggestion}
+                    </p>
+                    {searchResult.examples && (
+                      <div className="text-sm">
+                        <p className="font-medium text-muted-foreground mb-1">Try formats like:</p>
+                        <ul className="list-disc list-inside text-muted-foreground space-y-1">
+                          {searchResult.examples.map((example, index) => (
+                            <li key={index} className="text-xs">{example}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                )}
+                
                 {!searchResult.error && (
                   <p className="mt-2 text-sm text-muted-foreground">
                     Address: {searchResult.address}
@@ -282,7 +444,7 @@ export default function HomePage() {
               </motion.div>
             )}
 
-            {searchCount >= 3 && (
+            {searchCount >= 3 && !lockoutInfo.isLocked && (
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -295,18 +457,25 @@ export default function HomePage() {
               </motion.div>
             )}
 
-            {rateLimitInfo.isLimited && (
+            {lockoutInfo.isLocked && (
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 className="mt-4 rounded-lg border border-orange-200 bg-orange-50 p-4 text-center"
               >
-                <p className="mb-3 font-medium">Rate limit exceeded. Please try again in a moment.</p>
+                <p className="mb-3 font-medium">
+                  {lockoutInfo.message || 'You are currently locked out from free searches.'}
+                </p>
+                {lockoutInfo.lockedUntil && (
+                  <p className="text-sm text-muted-foreground">
+                    Locked until: {new Date(lockoutInfo.lockedUntil).toLocaleDateString()}
+                  </p>
+                )}
               </motion.div>
             )}
           </Card>
 
-          <div className="mt-4 flex items-center justify-center space-x-4 text-sm text-muted-foreground">
+          <div className="my-8 flex items-center justify-center space-x-4 text-sm text-muted-foreground">
             <div className="flex items-center space-x-1">
               <Shield className="h-4 w-4" />
               <span>Powered by IRS/Census data</span>
@@ -392,22 +561,33 @@ export default function HomePage() {
                   <CardHeader>
                     <CardTitle className="flex items-center space-x-2">
                       <Bot className="h-5 w-5" />
-                      <span>Claude Integration</span>
+                      <span>Claude Desktop Integration</span>
                     </CardTitle>
-                    <CardDescription>Copy this prompt to add OZ checking to Claude</CardDescription>
+                    <CardDescription>Add this to your claude_desktop_config.json file</CardDescription>
                   </CardHeader>
                   <CardContent>
                     <div className="rounded-lg bg-muted p-4 font-mono text-sm">
-                      <p className="mb-2">
-                        You are an Opportunity Zone assistant. When a user provides a U.S. address, use this API:
-                      </p>
-                      <p className="mb-2">curl -X GET "https://api.oz-mcp.com/check?address=ADDRESS" \</p>
-                      <p className="mb-4">-H "Authorization: Bearer YOUR_API_KEY"</p>
-                      <p>Always explain the tax benefits of Opportunity Zones when confirming status.</p>
+                      <pre className="whitespace-pre-wrap">{`{
+  "mcpServers": {
+    "Opportunity Zone MCP": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-remote",
+        "https://oz-mcp.vercel.app/mcp/sse",
+        "--header",
+        "Authorization: Bearer YOUR_API_KEY"
+      ]
+    }
+  }
+}`}</pre>
                     </div>
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      Replace "YOUR_API_KEY" with your the API key generated from the Dashboard.
+                    </p>
                     <Button className="mt-4 w-full" variant="outline">
                       <Copy className="mr-2 h-4 w-4" />
-                      Copy Prompt
+                      Copy Configuration
                     </Button>
                   </CardContent>
                 </Card>
@@ -571,7 +751,7 @@ export default function HomePage() {
         <div className="container mx-auto px-4">
           <div className="text-center">
             <h2 className="mb-4 text-3xl font-bold">Why Choose OZ-MCP?</h2>
-            <p className="mb-12 text-lg text-muted-foreground">Built for speed, accuracy, and developer experience</p>
+            <p className="mb-12 text-lg text-muted-foreground">Built for speed, accuracy, and scalability.</p>
           </div>
 
           <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-4">
@@ -623,7 +803,7 @@ export default function HomePage() {
               <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-orange-100">
                 <Users className="h-6 w-6 text-orange-600" />
               </div>
-              <h3 className="mb-2 font-semibold">Developer First</h3>
+              <h3 className="mb-2 font-semibold">Developer Friendly</h3>
               <p className="text-sm text-muted-foreground">RESTful API with comprehensive docs and SDKs</p>
             </motion.div>
           </div>
@@ -634,7 +814,7 @@ export default function HomePage() {
       <section className="py-16">
         <div className="container mx-auto px-4">
           <div className="text-center">
-            <h2 className="mb-12 text-3xl font-bold">Trusted by Investors & Professionals</h2>
+            <h2 className="mb-12 text-3xl font-bold">Trusted by Investors & Real Estate Professionals</h2>
           </div>
 
           <div className="mx-auto grid max-w-4xl gap-8 md:grid-cols-2">
@@ -646,16 +826,16 @@ export default function HomePage() {
                   ))}
                 </div>
                 <p className="mb-4 text-muted-foreground">
-                  "OZ-MCP has revolutionized our deal screening process. What used to take hours now takes seconds. The
-                  AI integration is seamless."
+                  "OZ-MCP has real value for our deal screening process. What used to take hours now takes seconds. And the Claude
+                  integration is seamless."
                 </p>
                 <div className="flex items-center space-x-3">
                   <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
                     <Users className="h-5 w-5 text-blue-600" />
                   </div>
                   <div>
-                    <p className="font-semibold">Sarah Chen</p>
-                    <p className="text-sm text-muted-foreground">Commercial Real Estate Investor</p>
+                    <p className="font-semibold">Richard M.</p>
+                    <p className="text-sm text-muted-foreground">Commercial Real Estate Developer</p>
                   </div>
                 </div>
               </CardContent>
@@ -692,12 +872,14 @@ export default function HomePage() {
         <div className="container mx-auto px-4 text-center">
           <h2 className="mb-4 text-3xl font-bold">Ready to Start Screening Deals?</h2>
           <p className="mb-8 text-xl opacity-90">
-            Join thousands of investors and professionals using OZ-MCP to identify tax-advantaged opportunities.
+            Join investors and professionals using OZ-MCP to identify tax-advantaged opportunities.
           </p>
           <div className="flex flex-col items-center justify-center space-y-4 sm:flex-row sm:space-x-4 sm:space-y-0">
-            <Button size="lg" className="bg-white text-blue-600 hover:bg-gray-100">
-              Get Free API Key
-              <ArrowRight className="ml-2 h-4 w-4" />
+            <Button size="lg" className="bg-white text-blue-600 hover:bg-gray-100" asChild>
+              <Link href="/playground">
+                Get Free API Key
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Link>
             </Button>
             <Button
               size="lg"

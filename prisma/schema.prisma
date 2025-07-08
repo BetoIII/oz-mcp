@@ -139,6 +139,7 @@ model GeocodingCache {
   latitude    Float
   longitude   Float
   displayName String
+  notFound    Boolean  @default(false)
   expiresAt   DateTime
   createdAt   DateTime @default(now())
 }
