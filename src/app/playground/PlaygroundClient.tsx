@@ -1,0 +1,690 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import Link from 'next/link';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
+import { Progress } from '@/components/ui/progress';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { 
+  MapPin, 
+  Play, 
+  RefreshCw, 
+  Key, 
+  Settings, 
+  CheckCircle, 
+  XCircle, 
+  Clock,
+  Database,
+  Shield,
+  ExternalLink,
+  AlertTriangle,
+  Info
+} from 'lucide-react';
+import { Footer } from "@/components/Footer"
+import { Navbar } from "@/components/Navbar"
+
+interface ApiResponse {
+  content?: Array<{
+    type: string;
+    text: string;
+  }>;
+  error?: string;
+}
+
+export default function PlaygroundClient() {
+  const [accessToken, setAccessToken] = useState<string>('');
+  const [selectedTool, setSelectedTool] = useState<string>('check_opportunity_zone');
+  const [params, setParams] = useState<Record<string, string>>({
+    address: '',
+    latitude: '',
+    longitude: '',
+  });
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [response, setResponse] = useState<ApiResponse | null>(null);
+  const [error, setError] = useState<string>('');
+
+  // OAuth-related state
+  const [oauthClient, setOauthClient] = useState<{ clientId: string; clientSecret: string } | null>(null);
+  const [showOAuthSetup, setShowOAuthSetup] = useState<boolean>(false);
+
+  // Service status monitoring
+  const [serviceStatus, setServiceStatus] = useState<{
+    isInitialized: boolean;
+    lastUpdated?: string;
+    featureCount?: number;
+    isLoading: boolean;
+  }>({ isInitialized: false, isLoading: false });
+  const [autoRefreshStatus, setAutoRefreshStatus] = useState<boolean>(false);
+
+  // Load stored access token on component mount
+  useEffect(() => {
+    const storedToken = localStorage.getItem('oauth_access_token');
+    if (storedToken) {
+      setAccessToken(storedToken);
+    }
+  }, []);
+
+  // Function to initiate OAuth flow
+  const initiateOAuth = () => {
+    if (!oauthClient) {
+      setShowOAuthSetup(true);
+      return;
+    }
+
+    // Generate PKCE parameters
+    const generateCodeVerifier = () => {
+      const array = new Uint8Array(32);
+      crypto.getRandomValues(array);
+      return Array.from(array, byte => ('0' + byte.toString(16)).slice(-2)).join('');
+    };
+
+    const generateCodeChallenge = async (verifier: string) => {
+      const encoder = new TextEncoder();
+      const data = encoder.encode(verifier);
+      const digest = await crypto.subtle.digest('SHA-256', data);
+      return btoa(String.fromCharCode(...new Uint8Array(digest)))
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=+$/, '');
+    };
+
+    const startOAuthFlow = async () => {
+      const codeVerifier = generateCodeVerifier();
+      const codeChallenge = await generateCodeChallenge(codeVerifier);
+      const state = crypto.getRandomValues(new Uint32Array(1))[0].toString();
+      
+      const redirectUri = `${window.location.origin}/oauth/callback`;
+      
+      // Store OAuth parameters
+      localStorage.setItem('oauth_client_id', oauthClient.clientId);
+      localStorage.setItem('oauth_client_secret', oauthClient.clientSecret);
+      localStorage.setItem('oauth_redirect_uri', redirectUri);
+      localStorage.setItem('oauth_code_verifier', codeVerifier);
+      localStorage.setItem('oauth_state', state);
+      
+      // Build authorization URL
+      const authUrl = new URL('/oauth/authorize', window.location.origin);
+      authUrl.searchParams.set('client_id', oauthClient.clientId);
+      authUrl.searchParams.set('redirect_uri', redirectUri);
+      authUrl.searchParams.set('response_type', 'code');
+      authUrl.searchParams.set('scope', 'api:read');
+      authUrl.searchParams.set('state', state);
+      authUrl.searchParams.set('code_challenge', codeChallenge);
+      authUrl.searchParams.set('code_challenge_method', 'S256');
+      
+      // Redirect to authorization page
+      window.location.href = authUrl.toString();
+    };
+
+    startOAuthFlow();
+  };
+
+  // Function to check service status
+  const checkServiceStatus = async () => {
+    if (!accessToken) return;
+    
+    setServiceStatus(prev => ({ ...prev, isLoading: true }));
+    
+    try {
+      const requestBody = {
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: {
+          name: 'get_oz_status',
+          arguments: {},
+        },
+      };
+
+      const response = await fetch('/api/mcp', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.result?.content?.[0]?.text) {
+          const statusText = result.result.content[0].text;
+          const isInitialized = statusText.includes('Initialized: ✅ Yes');
+          const cacheLoaded = statusText.includes('Cache loaded: ✅ Yes');
+          const dbHasData = statusText.includes('Database has data: ✅ Yes');
+          const featureMatch = statusText.match(/Feature count: (\d+)/);
+          const featureCount = featureMatch ? parseInt(featureMatch[1]) : 0;
+          const lastUpdatedMatch = statusText.match(/Last updated: ([^\n]+)/);
+          const lastUpdated = lastUpdatedMatch ? lastUpdatedMatch[1] : undefined;
+          
+          setServiceStatus({
+            isInitialized,
+            featureCount,
+            lastUpdated,
+            isLoading: false
+          });
+
+          // If database has data but cache isn't loaded, try to trigger cache loading
+          if (dbHasData && !cacheLoaded && !isInitialized) {
+            console.log('Database has data but cache not loaded, attempting to trigger cache loading...');
+            // Try a simple check request to force cache loading
+            setTimeout(() => {
+              triggerCacheLoading();
+            }, 2000);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error checking service status:', error);
+      setServiceStatus(prev => ({ ...prev, isLoading: false }));
+    }
+  };
+
+  // Function to trigger cache loading by making a simple check request
+  const triggerCacheLoading = async () => {
+    if (!accessToken) return;
+    
+    try {
+      console.log('Triggering cache loading with simple check request...');
+      const requestBody = {
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: {
+          name: 'check_opportunity_zone',
+          arguments: {
+            latitude: '38.8977',
+            longitude: '-77.0365'
+          },
+        },
+      };
+
+      await fetch('/api/mcp', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      // Check status again after a short delay
+      setTimeout(() => {
+        checkServiceStatus();
+      }, 3000);
+    } catch (error) {
+      console.log('Cache loading trigger failed:', error);
+    }
+  };
+
+  // Auto-refresh status when access token is available
+  useEffect(() => {
+    if (accessToken && autoRefreshStatus) {
+      const interval = setInterval(checkServiceStatus, 5000);
+      return () => clearInterval(interval);
+    }
+  }, [accessToken, autoRefreshStatus]);
+
+  // Handle URL parameters for OAuth callback
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const code = urlParams.get('code');
+    const state = urlParams.get('state');
+    const error = urlParams.get('error');
+
+    if (error) {
+      setError(`OAuth error: ${error}`);
+      return;
+    }
+
+    if (code && state) {
+      const storedState = localStorage.getItem('oauth_state');
+      if (state !== storedState) {
+        setError('Invalid state parameter');
+        return;
+      }
+
+      // Exchange code for token
+      exchangeCodeForToken(code);
+    }
+  }, []);
+
+  const exchangeCodeForToken = async (code: string) => {
+    const clientId = localStorage.getItem('oauth_client_id');
+    const clientSecret = localStorage.getItem('oauth_client_secret');
+    const redirectUri = localStorage.getItem('oauth_redirect_uri');
+    const codeVerifier = localStorage.getItem('oauth_code_verifier');
+
+    if (!clientId || !clientSecret || !redirectUri || !codeVerifier) {
+      setError('Missing OAuth parameters');
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/oauth/token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+          grant_type: 'authorization_code',
+          code,
+          redirect_uri: redirectUri,
+          client_id: clientId,
+          client_secret: clientSecret,
+          code_verifier: codeVerifier,
+        }),
+      });
+
+      if (response.ok) {
+        const tokenData = await response.json();
+        setAccessToken(tokenData.access_token);
+        localStorage.setItem('oauth_access_token', tokenData.access_token);
+        
+        // Clean up OAuth parameters
+        localStorage.removeItem('oauth_client_id');
+        localStorage.removeItem('oauth_client_secret');
+        localStorage.removeItem('oauth_redirect_uri');
+        localStorage.removeItem('oauth_code_verifier');
+        localStorage.removeItem('oauth_state');
+        
+        // Clear URL parameters
+        window.history.replaceState({}, document.title, window.location.pathname);
+        
+        // Automatically check service status after getting token
+        setTimeout(checkServiceStatus, 1000);
+      } else {
+        const errorData = await response.text();
+        setError(`Token exchange failed: ${errorData}`);
+      }
+    } catch (error) {
+      setError(`Token exchange error: ${error}`);
+    }
+  };
+
+  const handleToolChange = (tool: string) => {
+    setSelectedTool(tool);
+    setResponse(null);
+    setError('');
+  };
+
+  const handleParamChange = (key: string, value: string) => {
+    setParams(prev => ({ ...prev, [key]: value }));
+  };
+
+  const executeRequest = async () => {
+    if (!accessToken) {
+      setError('No access token available. Please authenticate first.');
+      return;
+    }
+
+    if (!selectedTool) {
+      setError('Please select a tool to execute.');
+      return;
+    }
+
+    setIsLoading(true);
+    setError('');
+    setResponse(null);
+
+    try {
+      const requestBody = {
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: {
+          name: selectedTool,
+          arguments: params,
+        },
+      };
+
+      const response = await fetch('/api/mcp', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      const result = await response.json();
+      setResponse(result);
+
+      if (!response.ok) {
+        setError(`HTTP ${response.status}: ${result.error?.message || 'Unknown error'}`);
+      }
+    } catch (error) {
+      setError(`Request failed: ${error}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const tools = {
+    check_opportunity_zone: {
+      name: 'Check Opportunity Zone',
+      description: 'Check if coordinates or an address is in an opportunity zone',
+      parameters: {
+        address: 'Address to check (optional, alternative to coordinates)',
+        latitude: 'Latitude (optional, alternative to address)',
+        longitude: 'Longitude (optional, alternative to address)',
+      },
+    },
+    geocode_address: {
+      name: 'Geocode Address',
+      description: 'Convert an address to coordinates',
+      parameters: {
+        address: 'Address to geocode',
+      },
+    },
+    get_oz_status: {
+      name: 'Get Service Status',
+      description: 'Get opportunity zone service status and cache information',
+      parameters: {},
+    },
+    refresh_oz_data: {
+      name: 'Refresh Data',
+      description: 'Force refresh of opportunity zone data',
+      parameters: {},
+    },
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50">
+      <Navbar variant="playground" icon={<Play className="h-5 w-5 text-white" />} />
+
+      <div className="container mx-auto px-4 py-8">
+        {/* Service Status */}
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2">
+              <Database className="h-5 w-5" />
+              <span>Service Status</span>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={checkServiceStatus}
+                disabled={!accessToken || serviceStatus.isLoading}
+              >
+                <RefreshCw className={`h-4 w-4 ${serviceStatus.isLoading ? 'animate-spin' : ''}`} />
+              </Button>
+            </CardTitle>
+            <CardDescription>
+              Monitor the MCP server initialization and data loading status
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="flex items-center space-x-2">
+                {serviceStatus.isInitialized ? (
+                  <CheckCircle className="h-5 w-5 text-green-600" />
+                ) : (
+                  <XCircle className="h-5 w-5 text-red-600" />
+                )}
+                <span className="text-sm">
+                  {serviceStatus.isInitialized ? 'Initialized' : 'Not Initialized'}
+                </span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Database className="h-5 w-5 text-blue-600" />
+                <span className="text-sm">
+                  {serviceStatus.featureCount || 0} features loaded
+                </span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Clock className="h-5 w-5 text-slate-600" />
+                <span className="text-sm">
+                  {serviceStatus.lastUpdated || 'Never updated'}
+                </span>
+              </div>
+            </div>
+            {!accessToken && (
+              <Badge variant="destructive" className="mt-4">
+                No access token - authenticate to check status
+              </Badge>
+            )}
+          </CardContent>
+        </Card>
+
+        <div className="grid lg:grid-cols-3 gap-8">
+          {/* Main Controls */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Authentication */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <Shield className="h-5 w-5" />
+                  <span>Authentication</span>
+                </CardTitle>
+                <CardDescription>
+                  Manage your access token for API requests
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {!accessToken ? (
+                  <div className="space-y-4">
+                    {!showOAuthSetup ? (
+                      <div className="text-center space-y-4">
+                        <p className="text-sm text-muted-foreground">
+                          You need an access token to use the playground
+                        </p>
+                        <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                          <Button onClick={() => setShowOAuthSetup(true)}>
+                            <Key className="h-4 w-4 mr-2" />
+                            Configure OAuth Client
+                          </Button>
+                          <Link href="/dashboard">
+                            <Button variant="outline">
+                              <ExternalLink className="h-4 w-4 mr-2" />
+                              Create Client in Dashboard
+                            </Button>
+                          </Link>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="clientId">Client ID</Label>
+                          <Input
+                            id="clientId"
+                            placeholder="Enter your OAuth client ID"
+                            value={oauthClient?.clientId || ''}
+                            onChange={(e) => setOauthClient(prev => ({ ...prev, clientId: e.target.value, clientSecret: prev?.clientSecret || '' }))}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="clientSecret">Client Secret</Label>
+                          <Input
+                            id="clientSecret"
+                            type="password"
+                            placeholder="Enter your OAuth client secret"
+                            value={oauthClient?.clientSecret || ''}
+                            onChange={(e) => setOauthClient(prev => ({ ...prev, clientSecret: e.target.value, clientId: prev?.clientId || '' }))}
+                          />
+                        </div>
+                        <div className="flex gap-2">
+                          <Button 
+                            onClick={initiateOAuth}
+                            disabled={!oauthClient?.clientId || !oauthClient?.clientSecret}
+                          >
+                            Start OAuth Flow
+                          </Button>
+                          <Button variant="outline" onClick={() => setShowOAuthSetup(false)}>
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="flex items-center space-x-2">
+                      <CheckCircle className="h-5 w-5 text-green-600" />
+                      <span className="text-sm font-medium">Authenticated</span>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Access Token (masked)</Label>
+                      <div className="flex space-x-2">
+                        <Input 
+                          value={accessToken.substring(0, 8) + '...' + accessToken.substring(accessToken.length - 8)}
+                          readOnly
+                        />
+                        <Button 
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setAccessToken('');
+                            localStorage.removeItem('oauth_access_token');
+                          }}
+                        >
+                          Clear
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Tool Selection and Parameters */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <Settings className="h-5 w-5" />
+                  <span>Tool Configuration</span>
+                </CardTitle>
+                <CardDescription>
+                  Select and configure the MCP tool to execute
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="tool">Tool</Label>
+                  <Select value={selectedTool} onValueChange={handleToolChange}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a tool" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="check_opportunity_zone">Check Opportunity Zone</SelectItem>
+                      <SelectItem value="geocode_address">Geocode Address</SelectItem>
+                      <SelectItem value="get_oz_status">Get Service Status</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <Separator />
+
+                {/* Tool-specific parameters */}
+                {selectedTool === 'check_opportunity_zone' && (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="latitude">Latitude</Label>
+                        <Input
+                          id="latitude"
+                          placeholder="e.g., 38.8977"
+                          value={params.latitude}
+                          onChange={(e) => handleParamChange('latitude', e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="longitude">Longitude</Label>
+                        <Input
+                          id="longitude"
+                          placeholder="e.g., -77.0365"
+                          value={params.longitude}
+                          onChange={(e) => handleParamChange('longitude', e.target.value)}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {selectedTool === 'geocode_address' && (
+                  <div className="space-y-2">
+                    <Label htmlFor="address">Address</Label>
+                    <Input
+                      id="address"
+                      placeholder="e.g., 123 Main St, New York, NY"
+                      value={params.address}
+                      onChange={(e) => handleParamChange('address', e.target.value)}
+                    />
+                  </div>
+                )}
+
+                <Button 
+                  onClick={executeRequest}
+                  disabled={!accessToken || isLoading}
+                  className="w-full"
+                >
+                  {isLoading ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                      Executing...
+                    </>
+                  ) : (
+                    <>
+                      <Play className="h-4 w-4 mr-2" />
+                      Execute Request
+                    </>
+                  )}
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Response Panel */}
+          <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Response</CardTitle>
+                <CardDescription>
+                  API response will appear here
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {error && (
+                  <Alert variant="destructive" className="mb-4">
+                    <XCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      <strong>Error:</strong> {error}
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                {response && (
+                  <div className="space-y-4">
+                    <Badge variant={response.error ? "destructive" : "default"}>
+                      {response.error ? "Error" : "Success"}
+                    </Badge>
+                    <Textarea
+                      value={JSON.stringify(response, null, 2)}
+                      readOnly
+                      className="min-h-[400px] font-mono text-xs"
+                    />
+                  </div>
+                )}
+
+                {!response && !error && !isLoading && (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Play className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm">Execute a request to see the response</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
+
+      <Footer />
+    </div>
+  );
+} 

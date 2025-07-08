@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { CheckCircle, XCircle, Clock, AlertTriangle } from 'lucide-react';
 import { Footer } from "@/components/Footer"
+import { Navbar } from "@/components/Navbar"
 
 export default function TestPage() {
   const [status, setStatus] = useState<string>('Ready to test');
@@ -134,33 +135,7 @@ export default function TestPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
-      {/* Header */}
-      <nav className="bg-white/80 backdrop-blur-md border-b border-slate-200/50 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center space-x-2">
-              <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-sm">OZ</span>
-              </div>
-              <span className="text-xl font-bold text-slate-900">Connection Test</span>
-            </div>
-            <div className="flex items-center space-x-6">
-              <Link href="/playground" className="text-slate-600 hover:text-slate-900 transition-colors">
-                Playground
-              </Link>
-              <Link href="/dashboard" className="text-slate-600 hover:text-slate-900 transition-colors">
-                Dashboard
-              </Link>
-              <Link 
-                href="/" 
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium"
-              >
-                Home
-              </Link>
-            </div>
-          </div>
-        </div>
-      </nav>
+      <Navbar variant="default" title="Connection Test" />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Page Header */}

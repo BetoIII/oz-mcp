@@ -17,32 +17,12 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { Footer } from "@/components/Footer"
+import { Navbar } from "@/components/Navbar"
 
 export default function OAuthFlowPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50">
-      {/* Header */}
-      <header className="sticky top-0 z-50 w-full border-b bg-white/80 backdrop-blur-md">
-        <div className="container mx-auto flex h-16 items-center justify-between px-4">
-          <div className="flex items-center space-x-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600">
-              <Book className="h-5 w-5 text-white" />
-            </div>
-            <span className="text-xl font-bold">OAuth Documentation</span>
-          </div>
-          <nav className="flex items-center space-x-6">
-            <Link href="/dashboard" className="text-sm font-medium hover:text-blue-600">
-              Dashboard
-            </Link>
-            <Link href="/playground" className="text-sm font-medium hover:text-blue-600">
-              Playground
-            </Link>
-            <Link href="/">
-              <Button size="sm">Home</Button>
-            </Link>
-          </nav>
-        </div>
-      </header>
+      <Navbar variant="docs" icon={<Book className="h-5 w-5 text-white" />} title="OAuth Documentation" />
 
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto">

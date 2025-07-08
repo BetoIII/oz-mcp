@@ -25,6 +25,7 @@ import {
 import Link from "next/link"
 import { motion } from "framer-motion"
 import { Footer } from "@/components/Footer"
+import { Navbar } from "@/components/Navbar"
 
 export default function HomePage() {
   const [searchValue, setSearchValue] = useState("")
@@ -121,31 +122,7 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50">
-      {/* Header */}
-      <header className="sticky top-0 z-50 w-full border-b bg-white/80 backdrop-blur-md">
-        <div className="container mx-auto flex h-16 items-center justify-between px-4">
-          <div className="flex items-center space-x-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600">
-              <MapPin className="h-5 w-5 text-white" />
-            </div>
-            <span className="text-xl font-bold">OZ-MCP</span>
-          </div>
-          <nav className="hidden md:flex items-center space-x-6">
-            <Link href="#pricing" className="text-sm font-medium hover:text-blue-600">
-              Pricing
-            </Link>
-            <Link href="/docs/oauth-flow" className="text-sm font-medium hover:text-blue-600">
-              Docs
-            </Link>
-            <Button variant="outline" size="sm" asChild>
-              <Link href="/dashboard">Dashboard</Link>
-            </Button>
-            <Button size="sm" asChild>
-              <Link href="/playground">Get API Key</Link>
-            </Button>
-          </nav>
-        </div>
-      </header>
+      <Navbar variant="default" />
 
       {/* Hero Section */}
       <section className="container mx-auto px-4 py-16 text-center">

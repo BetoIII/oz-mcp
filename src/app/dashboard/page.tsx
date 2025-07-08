@@ -1,9 +1,10 @@
-import { auth } from '@/app/auth';
+import { requireAuth, DatabaseConnectionError } from '@/lib/auth-utils';
 import { prisma } from '@/app/prisma';
 import { redirect } from 'next/navigation';
 import { randomBytes } from 'crypto';
 import Link from 'next/link';
 import DeleteClientButton from './components/DeleteClientButton';
+import { DatabaseError } from '@/components/DatabaseError';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -13,28 +14,32 @@ import { Separator } from '@/components/ui/separator';
 import { Copy, ExternalLink, Key, Trash2, User, Shield, Clock, Database } from 'lucide-react';
 import { config } from '@/lib/utils';
 import { Footer } from "@/components/Footer"
+import { DashboardClient } from './DashboardClient';
 
 export default async function DashboardPage() {
-  const session = await auth();
-
-  if (!session || !session.user || !session.user.id) {
-    redirect('/');
+  let session;
+  
+  try {
+    session = await requireAuth();
+  } catch (error) {
+    if (error instanceof DatabaseConnectionError) {
+      return <DatabaseError message={error.message} />;
+    }
+    // Other errors will be handled by requireAuth (redirects, etc.)
+    throw error;
   }
 
   const clients = await prisma.client.findMany({
     where: {
-      OR: [
-        { userId: session.user.id },
-        { userId: null } // Include public clients the user created
-      ]
+      userId: session.user!.id
     },
     include: {
       accessTokens: {
-        where: { userId: session.user.id },
+        where: { userId: session.user!.id },
         orderBy: { createdAt: 'desc' }
       },
       authCodes: {
-        where: { userId: session.user.id },
+        where: { userId: session.user!.id },
         orderBy: { createdAt: 'desc' }
       }
     },
@@ -42,7 +47,7 @@ export default async function DashboardPage() {
   });
 
   const userTokens = await prisma.accessToken.findMany({
-    where: { userId: session.user.id },
+    where: { userId: session.user!.id },
     include: { client: true },
     orderBy: { createdAt: 'desc' }
   });
@@ -50,11 +55,8 @@ export default async function DashboardPage() {
   async function createClient(formData: FormData) {
     'use server';
     
-    const session = await auth();
-    if (!session?.user?.id) {
-      throw new Error('Not authenticated');
-    }
-
+    const session = await requireAuth();
+    
     const name = formData.get('name') as string;
     
     if (!name) {
@@ -74,7 +76,7 @@ export default async function DashboardPage() {
         name,
         redirectUris: defaultRedirectUris,
         clientSecret,
-        userId: session.user.id,
+        userId: session.user!.id,
       },
     });
 
@@ -84,17 +86,14 @@ export default async function DashboardPage() {
   async function deleteClient(formData: FormData) {
     'use server';
     
-    const session = await auth();
-    if (!session?.user?.id) {
-      throw new Error('Not authenticated');
-    }
+    const session = await requireAuth();
 
     const clientId = formData.get('clientId') as string;
     
     const client = await prisma.client.findFirst({
       where: {
         id: clientId,
-        userId: session.user.id
+        userId: session.user!.id
       }
     });
 
@@ -112,17 +111,14 @@ export default async function DashboardPage() {
   async function revokeToken(formData: FormData) {
     'use server';
     
-    const session = await auth();
-    if (!session?.user?.id) {
-      throw new Error('Not authenticated');
-    }
+    const session = await requireAuth();
 
     const tokenId = formData.get('tokenId') as string;
     
     const token = await prisma.accessToken.findFirst({
       where: {
         id: tokenId,
-        userId: session.user.id
+        userId: session.user!.id
       }
     });
 
@@ -141,46 +137,23 @@ export default async function DashboardPage() {
   const callbackUrl = `${config.baseUrl}/oauth/callback`;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50">
-      {/* Header */}
-      <header className="sticky top-0 z-50 w-full border-b bg-white/80 backdrop-blur-md">
-        <div className="container mx-auto flex h-16 items-center justify-between px-4">
-          <div className="flex items-center space-x-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600">
-              <Database className="h-5 w-5 text-white" />
-            </div>
-            <span className="text-xl font-bold">Developer Dashboard</span>
-          </div>
-          <nav className="flex items-center space-x-6">
-            <Link href="/playground" className="text-sm font-medium hover:text-blue-600">
-              Playground
-            </Link>
-            <Link href="/docs/oauth-flow" className="text-sm font-medium hover:text-blue-600">
-              Docs
-            </Link>
-            <Link href="/">
-              <Button size="sm">Home</Button>
-            </Link>
-          </nav>
-        </div>
-      </header>
-
+    <DashboardClient>
       <div className="container mx-auto px-4 py-8">
         {/* Welcome Section */}
         <Card className="mb-8 bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-100">
           <CardContent className="p-8">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-4">
-                {session.user.image && (
+                {session.user!.image && (
                   <img 
-                    src={session.user.image} 
-                    alt={session.user.name || "User"} 
+                    src={session.user!.image} 
+                    alt={session.user!.name || "User"} 
                     className="w-16 h-16 rounded-full border-2 border-blue-200"
                   />
                 )}
                 <div>
                   <h1 className="text-3xl font-bold text-slate-900">
-                    Welcome, {session.user.name?.split(' ')[0]}!
+                    Welcome, {session.user!.name?.split(' ')[0]}!
                   </h1>
                   <p className="text-slate-600 mt-1">
                     Manage your OAuth clients and access tokens
@@ -315,16 +288,16 @@ export default async function DashboardPage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex items-center space-x-3">
-                  {session.user.image && (
+                  {session.user!.image && (
                     <img 
-                      src={session.user.image} 
-                      alt={session.user.name || "User"} 
+                      src={session.user!.image} 
+                      alt={session.user!.name || "User"} 
                       className="w-10 h-10 rounded-full"
                     />
                   )}
                   <div>
-                    <p className="font-medium">{session.user.name}</p>
-                    <p className="text-sm text-slate-600">{session.user.email}</p>
+                    <p className="font-medium">{session.user!.name}</p>
+                    <p className="text-sm text-slate-600">{session.user!.email}</p>
                   </div>
                 </div>
               </CardContent>
@@ -400,6 +373,6 @@ export default async function DashboardPage() {
       </div>
 
       <Footer />
-    </div>
+    </DashboardClient>
   );
 }
