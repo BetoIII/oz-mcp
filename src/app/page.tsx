@@ -454,7 +454,7 @@ export default function HomePage() {
       <section id="pricing" className="bg-white py-16">
         <div className="container mx-auto px-4">
           <div className="text-center">
-            <h2 className="mb-4 text-3xl font-bold">Simple, Transparent Pricing</h2>
+            <h2 className="mb-4 text-3xl font-bold">Simple, usage-based pricing</h2>
             <p className="mb-12 text-lg text-muted-foreground">
               Choose the plan that fits your needs. Upgrade or downgrade anytime.
             </p>
@@ -473,11 +473,11 @@ export default function HomePage() {
                 <ul className="space-y-2 text-sm">
                   <li className="flex items-center space-x-2">
                     <CheckCircle className="h-4 w-4 text-green-600" />
-                    <span>100 API calls/month</span>
+                    <span>15 lookups/month</span>
                   </li>
                   <li className="flex items-center space-x-2">
                     <CheckCircle className="h-4 w-4 text-green-600" />
-                    <span>Basic support</span>
+                    <span>No card required</span>
                   </li>
                   <li className="flex items-center space-x-2">
                     <CheckCircle className="h-4 w-4 text-green-600" />
@@ -496,14 +496,14 @@ export default function HomePage() {
                 <CardTitle>Pro</CardTitle>
                 <CardDescription>For active investors and professionals</CardDescription>
                 <div className="text-3xl font-bold">
-                  $29<span className="text-lg font-normal">/month</span>
+                  $9<span className="text-lg font-normal">/month</span>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
                 <ul className="space-y-2 text-sm">
                   <li className="flex items-center space-x-2">
                     <CheckCircle className="h-4 w-4 text-green-600" />
-                    <span>5,000 API calls/month</span>
+                    <span>500 lookups/month</span>
                   </li>
                   <li className="flex items-center space-x-2">
                     <CheckCircle className="h-4 w-4 text-green-600" />
@@ -529,14 +529,14 @@ export default function HomePage() {
                 <CardTitle>Scale</CardTitle>
                 <CardDescription>For high-volume applications</CardDescription>
                 <div className="text-3xl font-bold">
-                  $99<span className="text-lg font-normal">/month</span>
+                  $49<span className="text-lg font-normal">/month</span>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
                 <ul className="space-y-2 text-sm">
                   <li className="flex items-center space-x-2">
                     <CheckCircle className="h-4 w-4 text-green-600" />
-                    <span>25,000 API calls/month</span>
+                    <span>5,000 lookups/month</span>
                   </li>
                   <li className="flex items-center space-x-2">
                     <CheckCircle className="h-4 w-4 text-green-600" />
@@ -548,14 +548,20 @@ export default function HomePage() {
                   </li>
                   <li className="flex items-center space-x-2">
                     <CheckCircle className="h-4 w-4 text-green-600" />
-                    <span>White-label options</span>
+                    <span>Webhook notifications</span>
                   </li>
                 </ul>
                 <Button className="w-full" variant="outline" asChild>
-                  <Link href="/dashboard">Contact Sales</Link>
+                  <Link href="/dashboard">Upgrade to Scale</Link>
                 </Button>
               </CardContent>
             </Card>
+          </div>
+
+          <div className="mt-12 text-center">
+            <p className="text-lg text-muted-foreground">
+              Need higher volume or custom features? <Link href="/dashboard" className="text-blue-600 hover:underline font-medium">Contact us for Enterprise pricing</Link>
+            </p>
           </div>
         </div>
       </section>

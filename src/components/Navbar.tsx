@@ -65,17 +65,21 @@ export function Navbar({ variant = 'default', title, icon }: NavbarProps) {
   }
 
   const navLinks = [
-    { href: '#pricing', label: 'Pricing', showOnHome: true },
     { href: '/docs/oauth-flow', label: 'Docs', showAlways: true },
     { href: '/playground', label: 'Playground', requiresAuth: true },
     { href: '/dashboard', label: 'Dashboard', requiresAuth: true },
   ]
 
   const filteredNavLinks = navLinks.filter(link => {
-    if (link.showOnHome && variant !== 'default') return false
-    if (link.requiresAuth && status !== 'authenticated') return false
-    if (!link.showAlways && !link.showOnHome && !link.requiresAuth) return false
-    return true
+    // Skip links that should only show on home page when not on default variant
+    if ('showOnHome' in link && link.showOnHome && variant !== 'default') return false
+    // Skip auth-required links when not authenticated
+    if ('requiresAuth' in link && link.requiresAuth && status !== 'authenticated') return false
+    // Show links that have showAlways, showOnHome, or requiresAuth properties
+    if ('showAlways' in link && link.showAlways) return true
+    if ('showOnHome' in link && link.showOnHome) return true
+    if ('requiresAuth' in link && link.requiresAuth) return true
+    return false
   })
 
   return (
