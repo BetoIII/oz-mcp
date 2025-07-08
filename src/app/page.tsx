@@ -263,6 +263,11 @@ export default function HomePage() {
                 }
                 value={searchValue}
                 onChange={(e) => setSearchValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !lockoutInfo.isLocked && searchValue.trim() && !isSearching) {
+                    handleSearch()
+                  }
+                }}
                 className="flex-1"
                 disabled={lockoutInfo.isLocked}
               />
@@ -271,7 +276,7 @@ export default function HomePage() {
                 disabled={!searchValue.trim() || lockoutInfo.isLocked || isSearching}
                 className="px-6"
               >
-                {isSearching ? "Checking..." : "Check OZ Status"}
+                {isSearching ? "Checking..." : "Search QOZs"}
               </Button>
             </div>
 
@@ -428,22 +433,33 @@ export default function HomePage() {
                   <CardHeader>
                     <CardTitle className="flex items-center space-x-2">
                       <Bot className="h-5 w-5" />
-                      <span>Claude Integration</span>
+                      <span>Claude Desktop Integration</span>
                     </CardTitle>
-                    <CardDescription>Copy this prompt to add OZ checking to Claude</CardDescription>
+                    <CardDescription>Add this to your claude_desktop_config.json file</CardDescription>
                   </CardHeader>
                   <CardContent>
                     <div className="rounded-lg bg-muted p-4 font-mono text-sm">
-                      <p className="mb-2">
-                        You are an Opportunity Zone assistant. When a user provides a U.S. address, use this API:
-                      </p>
-                      <p className="mb-2">curl -X GET "https://api.oz-mcp.com/check?address=ADDRESS" \</p>
-                      <p className="mb-4">-H "Authorization: Bearer YOUR_API_KEY"</p>
-                      <p>Always explain the tax benefits of Opportunity Zones when confirming status.</p>
+                      <pre className="whitespace-pre-wrap">{`{
+  "mcpServers": {
+    "Opportunity Zone MCP": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-remote",
+        "https://oz-mcp.vercel.app/mcp/sse",
+        "--header",
+        "Authorization: Bearer YOUR_API_KEY"
+      ]
+    }
+  }
+}`}</pre>
                     </div>
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      Replace "YOUR_API_KEY" with your the API key generated from the Dashboard.
+                    </p>
                     <Button className="mt-4 w-full" variant="outline">
                       <Copy className="mr-2 h-4 w-4" />
-                      Copy Prompt
+                      Copy Configuration
                     </Button>
                   </CardContent>
                 </Card>
