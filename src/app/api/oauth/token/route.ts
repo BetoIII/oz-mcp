@@ -84,6 +84,10 @@ export async function POST(request: NextRequest) {
 
     if (authCode.expiresAt < new Date()) {
       console.log("Auth code expired at:", authCode.expiresAt);
+      // Clean up expired code
+      await prisma.authCode.delete({ where: { id: authCode.id } }).catch(() => {
+        // Code might already be deleted, ignore error
+      });
       return NextResponse.json({ error: 'Code expired' }, { 
         status: 400,
         headers: {
@@ -143,24 +147,37 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Delete the auth code so it can't be used again
-    console.log("Deleting auth code:", authCode.id);
-    await prisma.authCode.delete({ where: { id: authCode.id } });
-    console.log("Auth code deleted.");
-
+    // Use a transaction to atomically delete auth code and create access token
     const accessToken = randomBytes(32).toString('hex');
     const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
 
-    console.log("Creating access token for user:", authCode.userId);
-    await prisma.accessToken.create({
-      data: {
-        token: accessToken,
-        expiresAt,
-        clientId: client.id,
-        userId: authCode.userId,
-      },
+    console.log("Creating access token and deleting auth code in transaction");
+    const result = await prisma.$transaction(async (tx) => {
+      // First, verify the auth code still exists and delete it atomically
+      const codeToDelete = await tx.authCode.findUnique({ where: { id: authCode.id } });
+      if (!codeToDelete) {
+        throw new Error('Authorization code has already been used');
+      }
+      
+      // Delete the auth code so it can't be used again
+      await tx.authCode.delete({ where: { id: authCode.id } });
+      console.log("Auth code deleted in transaction.");
+
+      // Create access token
+      const token = await tx.accessToken.create({
+        data: {
+          token: accessToken,
+          expiresAt,
+          clientId: client.id,
+          userId: authCode.userId,
+        },
+      });
+      console.log("Access token created in transaction.");
+      
+      return token;
     });
-    console.log("Access token created.");
+
+    console.log("Transaction completed successfully.");
 
     return NextResponse.json({
       access_token: accessToken,
@@ -175,6 +192,24 @@ export async function POST(request: NextRequest) {
     });
   } catch (e) {
     console.error("Error in token endpoint:", e);
+    
+    // Provide more specific error messages
+    if (e instanceof Error) {
+      if (e.message === 'Authorization code has already been used') {
+        return NextResponse.json({ 
+          error: 'invalid_grant', 
+          error_description: 'Authorization code has already been used or expired' 
+        }, { 
+          status: 400,
+          headers: {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'POST, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+          }
+        });
+      }
+    }
+    
     return NextResponse.json({ error: 'Server error' }, { 
       status: 500,
       headers: {

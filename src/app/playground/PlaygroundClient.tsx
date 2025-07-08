@@ -31,11 +31,26 @@ import { Footer } from "@/components/Footer"
 import { Navbar } from "@/components/Navbar"
 
 interface ApiResponse {
-  content?: Array<{
-    type: string;
-    text: string;
-  }>;
+  jsonrpc?: string;
+  id?: number;
+  result?: {
+    content?: Array<{
+      type: string;
+      text: string;
+    }>;
+  };
   error?: string;
+}
+
+interface ParsedOZResult {
+  address: string;
+  isOpportunityZone: boolean;
+  zoneId: string | null;
+  coordinates: { lat: number; lon: number } | null;
+  dataVersion?: string;
+  lastUpdated?: string;
+  featureCount?: number;
+  method?: string;
 }
 
 export default function PlaygroundClient() {
@@ -319,6 +334,57 @@ export default function PlaygroundClient() {
     setParams(prev => ({ ...prev, [key]: value }));
   };
 
+  // Function to parse MCP response text
+  const parseOZResponse = (text: string): ParsedOZResult | null => {
+    try {
+      // Extract address and coordinates
+      const addressMatch = text.match(/Address "([^"]+)" \(([^,]+), ([^)]+)\)/);
+      if (!addressMatch) return null;
+
+      const address = addressMatch[1];
+      const lat = parseFloat(addressMatch[2]);
+      const lon = parseFloat(addressMatch[3]);
+
+      // Check if in opportunity zone
+      const isInOZ = text.includes('is in an opportunity zone') && !text.includes('opportunity zone: null');
+      
+      // Extract zone ID
+      let zoneId = null;
+      if (isInOZ) {
+        const zoneMatch = text.match(/Zone ID: (\d+)/);
+        if (zoneMatch) {
+          zoneId = zoneMatch[1];
+        }
+      } else {
+        // Check for null zone
+        const nullZoneMatch = text.match(/opportunity zone: null/);
+        if (nullZoneMatch) {
+          zoneId = null;
+        }
+      }
+
+      // Extract metadata
+      const dataVersionMatch = text.match(/Data version: ([^\n]+)/);
+      const lastUpdatedMatch = text.match(/Last updated: ([^\n]+)/);
+      const featureCountMatch = text.match(/Feature count: (\d+)/);
+      const methodMatch = text.match(/method: (\w+)/);
+
+      return {
+        address,
+        isOpportunityZone: isInOZ,
+        zoneId,
+        coordinates: { lat, lon },
+        dataVersion: dataVersionMatch?.[1],
+        lastUpdated: lastUpdatedMatch?.[1],
+        featureCount: featureCountMatch ? parseInt(featureCountMatch[1]) : undefined,
+        method: methodMatch?.[1]
+      };
+    } catch (error) {
+      console.error('Error parsing OZ response:', error);
+      return null;
+    }
+  };
+
   const executeRequest = async () => {
     if (!accessToken) {
       setError('No access token available. Please authenticate first.');
@@ -372,9 +438,9 @@ export default function PlaygroundClient() {
       name: 'Check Opportunity Zone',
       description: 'Check if coordinates or an address is in an opportunity zone',
       parameters: {
-        address: 'Address to check (optional, alternative to coordinates)',
-        latitude: 'Latitude (optional, alternative to address)',
-        longitude: 'Longitude (optional, alternative to address)',
+        address: 'Address to check (alternative to coordinates)',
+        latitude: 'Latitude (alternative to address)',
+        longitude: 'Longitude (alternative to address)',
       },
     },
     geocode_address: {
@@ -584,6 +650,18 @@ export default function PlaygroundClient() {
                 {/* Tool-specific parameters */}
                 {selectedTool === 'check_opportunity_zone' && (
                   <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="address">Address</Label>
+                      <Input
+                        id="address"
+                        placeholder="e.g., 123 Main St, New York, NY"
+                        value={params.address}
+                        onChange={(e) => handleParamChange('address', e.target.value)}
+                      />
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      <p><strong>OR</strong> provide coordinates:</p>
+                    </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="latitude">Latitude</Label>
@@ -616,6 +694,12 @@ export default function PlaygroundClient() {
                       value={params.address}
                       onChange={(e) => handleParamChange('address', e.target.value)}
                     />
+                  </div>
+                )}
+
+                {selectedTool === 'get_oz_status' && (
+                  <div className="text-sm text-muted-foreground">
+                    <p>This tool requires no parameters.</p>
                   </div>
                 )}
 
@@ -664,6 +748,53 @@ export default function PlaygroundClient() {
                     <Badge variant={response.error ? "destructive" : "default"}>
                       {response.error ? "Error" : "Success"}
                     </Badge>
+
+                    {/* Parsed OZ Result Display */}
+                    {selectedTool === 'check_opportunity_zone' && response.result?.content?.[0]?.text && (
+                      <div className="mb-4">
+                        {(() => {
+                          const parsed = parseOZResponse(response.result.content[0].text);
+                          if (parsed) {
+                            return (
+                              <div className="rounded-lg border bg-muted/50 p-4 space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center space-x-2">
+                                    {parsed.isOpportunityZone ? (
+                                      <CheckCircle className="h-5 w-5 text-green-600" />
+                                    ) : (
+                                      <XCircle className="h-5 w-5 text-red-600" />
+                                    )}
+                                    <span className="font-medium">
+                                      {parsed.isOpportunityZone ? "✅ Opportunity Zone" : "❌ Not an Opportunity Zone"}
+                                    </span>
+                                  </div>
+                                  {parsed.zoneId && (
+                                    <Badge variant="secondary">Zone: {parsed.zoneId}</Badge>
+                                  )}
+                                </div>
+                                <div className="text-sm text-muted-foreground space-y-1">
+                                  <p><strong>Address:</strong> {parsed.address}</p>
+                                  {parsed.coordinates && (
+                                    <p><strong>Coordinates:</strong> {parsed.coordinates.lat}, {parsed.coordinates.lon}</p>
+                                  )}
+                                  {parsed.method && (
+                                    <p><strong>Method:</strong> {parsed.method}</p>
+                                  )}
+                                  {parsed.featureCount && (
+                                    <p><strong>Features:</strong> {parsed.featureCount.toLocaleString()}</p>
+                                  )}
+                                  {parsed.dataVersion && (
+                                    <p><strong>Data Version:</strong> {new Date(parsed.dataVersion).toLocaleString()}</p>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          }
+                          return null;
+                        })()}
+                      </div>
+                    )}
+
                     <Textarea
                       value={JSON.stringify(response, null, 2)}
                       readOnly

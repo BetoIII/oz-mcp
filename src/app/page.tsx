@@ -37,6 +37,7 @@ export default function HomePage() {
     confidence?: string;
     queryTime?: string;
     method?: string;
+    coordinates?: { lat: number; lon: number };
     error?: string;
   } | null>(null)
   const [isSearching, setIsSearching] = useState(false)
@@ -45,6 +46,48 @@ export default function HomePage() {
     resetTime?: number;
   }>({ isLimited: false })
 
+  // Function to parse MCP-style response text
+  const parseOZResponse = (text: string) => {
+    try {
+      // Extract address and coordinates
+      const addressMatch = text.match(/Address "([^"]+)" \(([^,]+), ([^)]+)\)/);
+      if (!addressMatch) return null;
+
+      const address = addressMatch[1];
+      const lat = parseFloat(addressMatch[2]);
+      const lon = parseFloat(addressMatch[3]);
+
+      // Check if in opportunity zone
+      const isInOZ = text.includes('is in an opportunity zone') && !text.includes('opportunity zone: null');
+      
+      // Extract zone ID
+      let zoneId = null;
+      if (isInOZ) {
+        const zoneMatch = text.match(/Zone ID: (\d+)/);
+        if (zoneMatch) {
+          zoneId = zoneMatch[1];
+        }
+      }
+
+      // Extract metadata
+      const methodMatch = text.match(/method: (\w+)/);
+      const dataVersionMatch = text.match(/Data version: ([^\n]+)/);
+
+      return {
+        address,
+        isOpportunityZone: isInOZ,
+        tractId: zoneId || "N/A",
+        coordinates: { lat, lon },
+        method: methodMatch?.[1] || "unknown",
+        confidence: isInOZ ? "High" : "High", // Assume high confidence for parsed results
+        queryTime: dataVersionMatch?.[1] ? new Date(dataVersionMatch[1]).toISOString() : new Date().toISOString()
+      };
+    } catch (error) {
+      console.error('Error parsing response:', error);
+      return null;
+    }
+  };
+
   const handleSearch = async () => {
     if (!searchValue.trim() || searchCount >= 3 || rateLimitInfo.isLimited) return
 
@@ -52,33 +95,10 @@ export default function HomePage() {
     setRateLimitInfo({ isLimited: false })
     
     try {
-      // Step 1: Geocode the address to get coordinates
-      const geocodeResponse = await fetch('/api/opportunity-zones/geocode', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ address: searchValue }),
-      })
-
-      // Check for rate limiting on geocode
-      if (geocodeResponse.status === 429) {
-        const retryAfter = geocodeResponse.headers.get('Retry-After')
-        const resetTime = retryAfter ? Date.now() + (parseInt(retryAfter) * 1000) : Date.now() + 60000
-        setRateLimitInfo({ isLimited: true, resetTime })
-        throw new Error('Rate limit exceeded. Please try again later.')
-      }
-
-      if (!geocodeResponse.ok) {
-        throw new Error(`Geocoding failed: ${geocodeResponse.status}`)
-      }
-
-      const geocodeData = await geocodeResponse.json()
+      // Use the MCP-style check with address parameter
+      const ozResponse = await fetch(`/api/opportunity-zones/check?address=${encodeURIComponent(searchValue)}&format=mcp`)
       
-      // Step 2: Check opportunity zone status using coordinates
-      const ozResponse = await fetch(`/api/opportunity-zones/check?lat=${geocodeData.latitude}&lon=${geocodeData.longitude}`)
-      
-      // Check for rate limiting on opportunity zone check
+      // Check for rate limiting
       if (ozResponse.status === 429) {
         const retryAfter = ozResponse.headers.get('Retry-After')
         const resetTime = retryAfter ? Date.now() + (parseInt(retryAfter) * 1000) : Date.now() + 60000
@@ -92,19 +112,68 @@ export default function HomePage() {
 
       const ozData = await ozResponse.json()
       
+      // Check if response has MCP format
+      if (ozData.result?.content?.[0]?.text) {
+        // Parse MCP response
+        const parsed = parseOZResponse(ozData.result.content[0].text);
+        if (parsed) {
+          setSearchResult(parsed);
+          setSearchCount((prev) => prev + 1);
+          setIsSearching(false);
+          return;
+        }
+      }
+      
+      // Fallback: If not MCP format, try original API
+      const geocodeResponse = await fetch('/api/opportunity-zones/geocode', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ address: searchValue }),
+      })
+
+      if (geocodeResponse.status === 429) {
+        const retryAfter = geocodeResponse.headers.get('Retry-After')
+        const resetTime = retryAfter ? Date.now() + (parseInt(retryAfter) * 1000) : Date.now() + 60000
+        setRateLimitInfo({ isLimited: true, resetTime })
+        throw new Error('Rate limit exceeded. Please try again later.')
+      }
+
+      if (!geocodeResponse.ok) {
+        throw new Error(`Geocoding failed: ${geocodeResponse.status}`)
+      }
+
+      const geocodeData = await geocodeResponse.json()
+      
+      const ozResponse2 = await fetch(`/api/opportunity-zones/check?lat=${geocodeData.latitude}&lon=${geocodeData.longitude}`)
+      
+      if (ozResponse2.status === 429) {
+        const retryAfter = ozResponse2.headers.get('Retry-After')
+        const resetTime = retryAfter ? Date.now() + (parseInt(retryAfter) * 1000) : Date.now() + 60000
+        setRateLimitInfo({ isLimited: true, resetTime })
+        throw new Error('Rate limit exceeded. Please try again later.')
+      }
+      
+      if (!ozResponse2.ok) {
+        throw new Error(`Opportunity zone check failed: ${ozResponse2.status}`)
+      }
+
+      const ozData2 = await ozResponse2.json()
+      
       setSearchResult({
         address: geocodeData.displayName || searchValue,
-        isOpportunityZone: ozData.isInOpportunityZone,
-        tractId: ozData.opportunityZoneId || "N/A",
-        confidence: ozData.performance?.info ? "High" : "Medium",
-        queryTime: ozData.metadata?.queryTime || "N/A",
-        method: ozData.metadata?.method || "unknown"
+        isOpportunityZone: ozData2.isInOpportunityZone,
+        tractId: ozData2.opportunityZoneId || "N/A",
+        confidence: ozData2.performance?.info ? "High" : "Medium",
+        queryTime: ozData2.metadata?.queryTime || "N/A",
+        method: ozData2.metadata?.method || "unknown",
+        coordinates: { lat: geocodeData.latitude, lon: geocodeData.longitude }
       })
       setSearchCount((prev) => prev + 1)
     } catch (error) {
       console.error('Search error:', error)
       
-      // Show user-friendly error message
       setSearchResult({
         address: searchValue,
         isOpportunityZone: false,

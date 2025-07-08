@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { Copy, ExternalLink, Key, Trash2, User, Shield, Clock, Database } from 'lucide-react';
+import { Copy, ExternalLink, Key, Trash2, User, Shield, Clock, Database, Plus } from 'lucide-react';
 import { config } from '@/lib/utils';
 import { Footer } from "@/components/Footer"
 import { DashboardClient } from './DashboardClient';
@@ -103,6 +103,57 @@ export default async function DashboardPage() {
 
     await prisma.client.delete({
       where: { id: clientId }
+    });
+
+    redirect('/dashboard');
+  }
+
+  async function createApiKey(formData: FormData) {
+    'use server';
+    
+    const session = await requireAuth();
+    const clientId = formData.get('clientId') as string;
+    
+    const client = await prisma.client.findFirst({
+      where: {
+        id: clientId,
+        userId: session.user!.id
+      }
+    });
+
+    if (!client) {
+      throw new Error('Client not found or unauthorized');
+    }
+
+    // Redirect to OAuth authorization flow for API key creation
+    const authUrl = new URL('/oauth/authorize', config.baseUrl);
+    authUrl.searchParams.set('client_id', client.clientId);
+    authUrl.searchParams.set('redirect_uri', client.redirectUris[0]); // Use first registered redirect URI
+    authUrl.searchParams.set('response_type', 'code');
+    authUrl.searchParams.set('state', randomBytes(16).toString('hex')); // CSRF protection
+
+    redirect(authUrl.toString());
+  }
+
+  async function deleteApiKey(formData: FormData) {
+    'use server';
+    
+    const session = await requireAuth();
+    const tokenId = formData.get('tokenId') as string;
+    
+    const token = await prisma.accessToken.findFirst({
+      where: {
+        id: tokenId,
+        userId: session.user!.id
+      }
+    });
+
+    if (!token) {
+      throw new Error('API key not found or unauthorized');
+    }
+
+    await prisma.accessToken.delete({
+      where: { id: tokenId }
     });
 
     redirect('/dashboard');
@@ -216,7 +267,7 @@ export default async function DashboardPage() {
                           <div className="flex items-center justify-between">
                             <CardTitle className="text-lg">{client.name}</CardTitle>
                             <Badge variant="secondary">
-                              {client.accessTokens.length} token{client.accessTokens.length !== 1 ? 's' : ''}
+                              {client.accessTokens.length} API key{client.accessTokens.length !== 1 ? 's' : ''}
                             </Badge>
                           </div>
                         </CardHeader>
@@ -246,15 +297,52 @@ export default async function DashboardPage() {
                             </div>
                           </div>
 
-                          <div>
-                            <Label className="text-xs text-slate-500">REDIRECT URIS</Label>
-                            <div className="mt-1 space-y-1">
-                              {client.redirectUris.map((uri, index) => (
-                                <code key={index} className="text-xs bg-slate-100 px-2 py-1 rounded block font-mono">
-                                  {uri}
-                                </code>
-                              ))}
+                          {/* API Keys Section */}
+                          <div className="pt-4 border-t border-slate-200">
+                            <div className="flex items-center justify-between mb-3">
+                              <Label className="text-sm font-medium text-slate-700">API Keys</Label>
+                              <form action={createApiKey}>
+                                <input type="hidden" name="clientId" value={client.id} />
+                                <Button size="sm" variant="outline" className="h-8">
+                                  <Plus className="h-3 w-3 mr-1" />
+                                  Create API Key
+                                </Button>
+                              </form>
                             </div>
+                            
+                            {client.accessTokens.length === 0 ? (
+                              <div className="text-center py-4 bg-slate-50 rounded-lg">
+                                <Key className="h-6 w-6 text-slate-400 mx-auto mb-2" />
+                                <p className="text-sm text-slate-500">No API keys created</p>
+                                <p className="text-xs text-slate-400">Create your first API key above</p>
+                              </div>
+                            ) : (
+                              <div className="space-y-2">
+                                {client.accessTokens.map((token) => (
+                                  <div key={token.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
+                                    <div className="flex-1">
+                                      <div className="flex items-center space-x-2">
+                                        <code className="text-xs bg-slate-200 px-2 py-1 rounded font-mono">
+                                          {token.token.substring(0, 8)}...{token.token.substring(token.token.length - 8)}
+                                        </code>
+                                        <Button size="sm" variant="outline" className="h-6 w-6 p-0">
+                                          <Copy className="h-3 w-3" />
+                                        </Button>
+                                      </div>
+                                      <p className="text-xs text-slate-500 mt-1">
+                                        Created {new Date(token.createdAt).toLocaleDateString()}
+                                      </p>
+                                    </div>
+                                    <form action={deleteApiKey}>
+                                      <input type="hidden" name="tokenId" value={token.id} />
+                                      <Button size="sm" variant="outline" className="h-7 w-7 p-0 text-red-600 hover:bg-red-50">
+                                        <Trash2 className="h-3 w-3" />
+                                      </Button>
+                                    </form>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                           </div>
 
                           <div className="flex items-center justify-between pt-2">
@@ -303,46 +391,42 @@ export default async function DashboardPage() {
               </CardContent>
             </Card>
 
-            {/* Access Tokens */}
+            {/* Access Tokens Summary */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center space-x-2">
                   <Key className="h-5 w-5" />
-                  <span>Access Tokens</span>
+                  <span>API Key Summary</span>
                 </CardTitle>
                 <CardDescription>
-                  Active tokens for API access
+                  Total active API keys across all clients
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 {userTokens.length === 0 ? (
                   <div className="text-center py-4">
                     <Key className="h-8 w-8 text-slate-400 mx-auto mb-2" />
-                    <p className="text-sm text-slate-500">No active tokens</p>
+                    <p className="text-sm text-slate-500">No active API keys</p>
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {userTokens.slice(0, 3).map((token) => (
-                      <div key={token.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
-                        <div>
-                          <p className="text-sm font-medium">{token.client.name}</p>
-                          <p className="text-xs text-slate-500">
-                            Created {new Date(token.createdAt).toLocaleDateString()}
-                          </p>
+                    <div className="text-center">
+                      <p className="text-2xl font-bold text-blue-600">{userTokens.length}</p>
+                      <p className="text-sm text-slate-500">Total API Keys</p>
+                    </div>
+                    <div className="space-y-2">
+                      {Object.entries(
+                        userTokens.reduce((acc, token) => {
+                          acc[token.client.name] = (acc[token.client.name] || 0) + 1;
+                          return acc;
+                        }, {} as Record<string, number>)
+                      ).map(([clientName, count]) => (
+                        <div key={clientName} className="flex justify-between text-sm">
+                          <span className="text-slate-600">{clientName}</span>
+                          <span className="font-medium">{count}</span>
                         </div>
-                        <form action={revokeToken}>
-                          <input type="hidden" name="tokenId" value={token.id} />
-                          <Button size="sm" variant="outline" className="h-7 w-7 p-0">
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
-                        </form>
-                      </div>
-                    ))}
-                    {userTokens.length > 3 && (
-                      <p className="text-xs text-slate-500 text-center">
-                        +{userTokens.length - 3} more tokens
-                      </p>
-                    )}
+                      ))}
+                    </div>
                   </div>
                 )}
               </CardContent>

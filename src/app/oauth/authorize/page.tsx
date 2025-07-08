@@ -5,7 +5,6 @@ import { randomBytes } from 'crypto';
 import { headers } from 'next/headers';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Footer } from "@/components/Footer"
 
 // Force dynamic rendering since we use auth() and headers() which access request data
 export const dynamic = 'force-dynamic';
@@ -334,8 +333,6 @@ export default async function AuthorizePage({
           </p>
         </div>
       </div>
-
-      <Footer />
     </div>
   );
 } 
