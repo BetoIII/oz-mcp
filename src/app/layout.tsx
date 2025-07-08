@@ -1,9 +1,16 @@
 import type { Metadata } from "next";
+import { Inter } from "next/font/google";
 import "./globals.css";
 import { auth } from "./auth";
 import { SessionProvider } from "next-auth/react";
 import { Analytics } from '@vercel/analytics/react';
 import { SpeedInsights } from '@vercel/speed-insights/next';
+import { ThemeProvider } from "@/components/theme-provider";
+
+// Force dynamic rendering since we use auth() which accesses headers
+export const dynamic = 'force-dynamic';
+
+const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "Opportunity Zone MCP Server",
@@ -56,25 +63,34 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const session = await auth();
+  // Handle auth errors gracefully - don't block page rendering if database is down
+  let session = null;
+  try {
+    session = await auth();
+  } catch (error) {
+    console.warn('Auth error in layout (using fallback):', error);
+    // Continue without session - will use client-side session handling
+  }
+
   return (
-    <html lang="en" className="h-full">
+    <html lang="en" className="h-full" suppressHydrationWarning>
       <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
-          rel="stylesheet"
-        />
         <link rel="icon" type="image/svg+xml" href="/favicon.ico" />
         <meta name="theme-color" content="#2563eb" />
         <meta name="color-scheme" content="light dark" />
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
       </head>
-      <body className="h-full antialiased">
-        <SessionProvider session={session}>
-          {children}
-        </SessionProvider>
+      <body className={`${inter.className} h-full antialiased`}>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
+          <SessionProvider session={session}>
+            {children}
+          </SessionProvider>
+        </ThemeProvider>
         <Analytics />
         <SpeedInsights />
       </body>

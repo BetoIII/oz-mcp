@@ -1,34 +1,59 @@
 # Opportunity Zone Search MCP Server
 
-This is a Next.js-based MCP (Model Context Protocol) server that provides opportunity zone search functionality with OAuth 2.1 authentication. It allows users to check if specific coordinates or addresses are located within designated opportunity zones in the United States.
+This is a Next.js-based MCP (Model Context Protocol) server that provides opportunity zone search functionality with OAuth 2.1 authentication. It features a modern web interface for developers and allows users to check if specific coordinates or addresses are located within designated opportunity zones in the United States.
 
-## Features
+## ✨ Features
 
+### Core MCP Functionality
 - **Opportunity Zone Lookup**: Check if coordinates or addresses are in opportunity zones
 - **Address Geocoding**: Convert addresses to coordinates using geocode.maps.co
-- **Spatial Indexing**: Fast point-in-polygon lookups using RBush spatial indexing
+- **PostGIS Spatial Optimization**: Fast point-in-polygon lookups with spatial indexing
 - **Data Caching**: Persistent caching of GeoJSON data and geocoding results in PostgreSQL
 - **OAuth 2.1 Authentication**: Secure access control with Google OAuth
 - **Multiple Transports**: Support for both SSE and Streamable HTTP transports via [@vercel/mcp-adapter](https://github.com/vercel/mcp-adapter)
-- **API Compatibility**: REST API endpoints for direct HTTP access
 
-## MCP Tools
+### Web Interface & Developer Tools
+- **🏠 Landing Page**: Modern homepage with interactive search demo and rate limiting
+- **📊 Developer Dashboard**: OAuth client management, API token generation, and usage monitoring
+- **🛝 API Playground**: Interactive testing environment for all MCP tools and endpoints
+- **📚 Documentation**: Comprehensive OAuth flow guide and API documentation
+- **🔧 Connection Testing**: Real-time API connectivity and performance testing
+- **📱 Responsive Design**: Mobile-first design built with shadcn/ui components
+- **🌙 Dark Mode Support**: System-aware theme switching
+- **⚡ Real-time Status**: Live service monitoring and cache metrics
+
+## 🛠 MCP Tools
 
 This server provides the following MCP tools:
 
 - **`check_opportunity_zone`** - Check if coordinates or an address is in an opportunity zone
 - **`geocode_address`** - Convert an address to coordinates  
 - **`get_oz_status`** - Get opportunity zone service status and cache information
-- **`refresh_oz_data`** - Force refresh of opportunity zone data
 
-## API Endpoints
+## 🌐 Web Interface
+
+Visit the application in your browser to access:
+
+- **Homepage** (`/`) - Interactive search demo with rate limiting
+- **Dashboard** (`/dashboard`) - OAuth client management and API keys
+- **Playground** (`/playground`) - Interactive API testing environment
+- **Documentation** (`/docs/oauth-flow`) - Complete OAuth 2.0 implementation guide
+- **Connection Test** (`/test`) - Real-time API connectivity testing
+
+## 📡 API Endpoints
 
 For direct HTTP access, the following REST endpoints are available:
 
-- `POST /api/opportunity-zones/check` - Check if coordinates/address is in opportunity zone
 - `POST /api/opportunity-zones/geocode` - Geocode an address to coordinates
-- `GET /api/opportunity-zones/status` - Get service status and cache metrics
+- `GET /api/opportunity-zones/check?lat={lat}&lon={lon}` - Check if coordinates are in opportunity zone
+- `GET /api/opportunity-zones/status` - Get service status and performance metrics
 - `GET /api/opportunity-zones/refresh` - Force refresh of opportunity zone data
+
+### OAuth 2.1 Endpoints
+- `POST /api/oauth/register` - Register a new OAuth client
+- `GET /oauth/authorize` - OAuth authorization endpoint
+- `POST /api/oauth/token` - Token exchange endpoint
+- `GET /.well-known/oauth-authorization-server` - OAuth discovery metadata
 
 ## Using with
 
@@ -72,7 +97,35 @@ VSCode currently [doesn't properly evict the client ID](https://github.com/micro
 
 Tell Inspector to connect to `https://example.com/mcp/mcp`, with Streamable HTTP transport. You can also use the SSE transport by connecting to `https://example.com/mcp/sse` instead.
 
-## Running the server
+## 🎨 Frontend Integration
+
+This application features a modern, responsive web interface built with:
+
+- **Next.js 15** with App Router
+- **shadcn/ui** component library for consistent design
+- **Tailwind CSS** for styling with design tokens
+- **Framer Motion** for smooth animations
+- **Lucide React** for icons
+- **TypeScript** for type safety
+
+### Design System
+
+The application uses a comprehensive design system with:
+- **Design Tokens**: CSS custom properties for colors, spacing, and typography
+- **Semantic Colors**: Brand, success, warning, info, and destructive color schemes
+- **Responsive Design**: Mobile-first approach with breakpoint-aware layouts
+- **Dark Mode**: System-aware theme switching with manual override
+- **Accessibility**: ARIA labels, focus management, and keyboard navigation
+
+### Performance Optimizations
+
+- **Code Splitting**: Automatic route-based code splitting
+- **Bundle Optimization**: Removed unused UI components to reduce bundle size
+- **PostGIS Integration**: Optimized spatial queries with 91.9% geometry compression
+- **Rate Limiting**: Built-in rate limiting with user feedback
+- **Caching**: Multi-layer caching for geocoding and opportunity zone data
+
+## 🚀 Running the server
 
 ```
 npm install

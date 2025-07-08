@@ -1,8 +1,48 @@
-import { clsx, type ClassValue } from 'clsx';
-import { twMerge } from 'tailwind-merge';
+import { type ClassValue, clsx } from "clsx"
+import { twMerge } from "tailwind-merge"
 
 export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
+  return twMerge(clsx(inputs))
+}
+
+export function formatBytes(bytes: number, decimals = 2) {
+  if (bytes === 0) return '0 Bytes';
+
+  const k = 1024;
+  const dm = decimals < 0 ? 0 : decimals;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
+
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+}
+
+export function formatMs(ms: number) {
+  if (ms < 1000) return `${Math.round(ms)}ms`;
+  return `${(ms / 1000).toFixed(1)}s`;
+}
+
+export function formatNumber(num: number) {
+  return new Intl.NumberFormat().format(num);
+}
+
+// Environment-aware configuration with proper client/server handling
+function getBaseUrl() {
+  // On the server, we can use environment variables
+  if (typeof window === 'undefined') {
+    if (process.env.NEXTAUTH_URL) return process.env.NEXTAUTH_URL;
+    if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
+    return 'http://localhost:3000';
+  }
+  
+  // On the client, use the current origin
+  return window.location.origin;
+}
+
+export const config = {
+  baseUrl: getBaseUrl(),
+  isDevelopment: process.env.NODE_ENV === 'development',
+  isProduction: process.env.NODE_ENV === 'production'
 }
 
 export const animations = {
@@ -29,6 +69,6 @@ export const animations = {
 export const seo = {
   defaultTitle: "Opportunity Zone MCP Server",
   defaultDescription: "Secure, OAuth-protected MCP server providing geospatial opportunity zone data and geocoding services for AI applications.",
-  defaultUrl: "https://oz-mcp.vercel.app",
-  defaultImage: "/og-image.jpg" // You can add this later
+  defaultUrl: config.baseUrl,
+  defaultImage: "/og-image.jpg"
 }; 

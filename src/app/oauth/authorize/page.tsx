@@ -3,6 +3,12 @@ import { prisma } from '@/app/prisma';
 import { redirect } from 'next/navigation';
 import { randomBytes } from 'crypto';
 import { headers } from 'next/headers';
+import Link from 'next/link';
+import { Button } from '@/components/ui/button';
+import { Footer } from "@/components/Footer"
+
+// Force dynamic rendering since we use auth() and headers() which access request data
+export const dynamic = 'force-dynamic';
 
 export default async function AuthorizePage({
   searchParams,
@@ -300,22 +306,25 @@ export default async function AuthorizePage({
 
         <form action={handleConsent} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
-            <button
+            <Button
               type="submit"
               name="consent"
               value="allow"
-              className="bg-blue-600 text-white py-4 px-6 rounded-xl hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors font-semibold"
+              size="lg"
+              className="py-4 px-6"
             >
               Authorize
-            </button>
-            <button
+            </Button>
+            <Button
               type="submit"
               name="consent"
               value="deny"
-              className="bg-slate-200 text-slate-800 py-4 px-6 rounded-xl hover:bg-slate-300 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 transition-colors font-semibold"
+              variant="secondary"
+              size="lg"
+              className="py-4 px-6"
             >
               Deny
-            </button>
+            </Button>
           </div>
         </form>
 
@@ -325,6 +334,8 @@ export default async function AuthorizePage({
           </p>
         </div>
       </div>
+
+      <Footer />
     </div>
   );
 } 
