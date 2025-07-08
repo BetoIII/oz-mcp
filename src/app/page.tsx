@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -24,11 +24,9 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import { motion } from "framer-motion"
-import { useSession, signIn, signOut } from "next-auth/react"
-import { config } from "@/lib/utils"
+import { Footer } from "@/components/Footer"
 
 export default function HomePage() {
-  const { data: session, status } = useSession()
   const [searchValue, setSearchValue] = useState("")
   const [searchCount, setSearchCount] = useState(0)
   const [searchResult, setSearchResult] = useState<{
@@ -45,27 +43,6 @@ export default function HomePage() {
     isLimited: boolean;
     resetTime?: number;
   }>({ isLimited: false })
-  const [isMounted, setIsMounted] = useState(false)
-
-  // Prevent hydration mismatches by only rendering session-dependent content after mount
-  useEffect(() => {
-    setIsMounted(true)
-  }, [])
-
-  // Handle rate limit countdown
-  useEffect(() => {
-    if (!rateLimitInfo.isLimited || !rateLimitInfo.resetTime) return
-
-    const interval = setInterval(() => {
-      const timeLeft = rateLimitInfo.resetTime! - Date.now()
-      if (timeLeft <= 0) {
-        setRateLimitInfo({ isLimited: false })
-        clearInterval(interval)
-      }
-    }, 1000)
-
-    return () => clearInterval(interval)
-  }, [rateLimitInfo.isLimited, rateLimitInfo.resetTime])
 
   const handleSearch = async () => {
     if (!searchValue.trim() || searchCount >= 3 || rateLimitInfo.isLimited) return
@@ -142,40 +119,6 @@ export default function HomePage() {
 
   const progressPercentage = (searchCount / 3) * 100
 
-  // Render loading state during hydration
-  if (!isMounted) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50">
-        <header className="sticky top-0 z-50 w-full border-b bg-white/80 backdrop-blur-md">
-          <div className="container mx-auto flex h-16 items-center justify-between px-4">
-            <div className="flex items-center space-x-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600">
-                <MapPin className="h-5 w-5 text-white" />
-              </div>
-              <span className="text-xl font-bold">OZ-MCP</span>
-            </div>
-            <nav className="hidden md:flex items-center space-x-6">
-              <Link href="/docs/oauth-flow" className="text-sm font-medium hover:text-blue-600">
-                Docs
-              </Link>
-              <Link href="/playground" className="text-sm font-medium hover:text-blue-600">
-                Playground
-              </Link>
-              <div className="flex items-center space-x-4">
-                <Button variant="outline" size="sm" disabled>
-                  Loading...
-                </Button>
-              </div>
-            </nav>
-          </div>
-        </header>
-        <div className="flex items-center justify-center min-h-[400px]">
-          <div className="text-center">Loading...</div>
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50">
       {/* Header */}
@@ -188,46 +131,18 @@ export default function HomePage() {
             <span className="text-xl font-bold">OZ-MCP</span>
           </div>
           <nav className="hidden md:flex items-center space-x-6">
+            <Link href="#pricing" className="text-sm font-medium hover:text-blue-600">
+              Pricing
+            </Link>
             <Link href="/docs/oauth-flow" className="text-sm font-medium hover:text-blue-600">
               Docs
             </Link>
-            <Link href="/playground" className="text-sm font-medium hover:text-blue-600">
-              Playground
-            </Link>
-            {status === "loading" ? (
-              <Button variant="outline" size="sm" disabled>
-                Loading...
-              </Button>
-            ) : session?.user ? (
-              <div className="flex items-center space-x-4">
-                <Link href="/dashboard">
-                  <Button size="sm">Dashboard</Button>
-                </Link>
-                <Button 
-                  onClick={() => signOut()}
-                  variant="outline"
-                  size="sm"
-                >
-                  Sign Out
-                </Button>
-              </div>
-            ) : (
-              <div className="flex items-center space-x-4">
-                <Button 
-                  onClick={() => signIn('google')}
-                  variant="outline"
-                  size="sm"
-                >
-                  Sign In
-                </Button>
-                <Button 
-                  onClick={() => signIn('google')}
-                  size="sm"
-                >
-                  Get API Key
-                </Button>
-              </div>
-            )}
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/dashboard">Dashboard</Link>
+            </Button>
+            <Button size="sm" asChild>
+              <Link href="/playground">Get API Key</Link>
+            </Button>
           </nav>
         </div>
       </header>
@@ -253,7 +168,12 @@ export default function HomePage() {
         </motion.div>
 
         {/* Search Demo */}
-        <div className="mx-auto max-w-2xl">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.2 }}
+          className="mx-auto max-w-2xl"
+        >
           <Card className="p-6 shadow-lg">
             <div className="mb-4 flex items-center justify-between">
               <span className="text-sm font-medium">Free Trial</span>
@@ -269,97 +189,74 @@ export default function HomePage() {
                 value={searchValue}
                 onChange={(e) => setSearchValue(e.target.value)}
                 className="flex-1"
-                disabled={searchCount >= 3}
+                disabled={searchCount >= 3 || rateLimitInfo.isLimited}
               />
               <Button
                 onClick={handleSearch}
                 disabled={!searchValue.trim() || searchCount >= 3 || isSearching || rateLimitInfo.isLimited}
                 className="px-6"
               >
-                {isSearching ? "Checking..." : 
-                 rateLimitInfo.isLimited ? "Rate Limited" :
-                 "Check OZ Status"}
+                {isSearching ? "Checking..." : "Check OZ Status"}
               </Button>
             </div>
 
-            {rateLimitInfo.isLimited && (
-              <div className="mt-4 rounded-lg border border-orange-200 bg-orange-50 p-4 text-center">
-                <div className="flex items-center justify-center space-x-2 mb-2">
-                  <Clock className="h-5 w-5 text-orange-600" />
-                  <span className="font-medium text-orange-800">Rate Limit Active</span>
-                </div>
-                <p className="text-sm text-orange-700">
-                  Too many requests. Please wait before searching again.
-                </p>
-                {rateLimitInfo.resetTime && (
-                  <p className="text-xs text-orange-600 mt-1">
-                    Reset in: {Math.ceil((rateLimitInfo.resetTime - Date.now()) / 1000)}s
-                  </p>
-                )}
-              </div>
-            )}
-
             {searchResult && (
-              <div className="mt-4 rounded-lg border bg-muted/50 p-4">
-                {searchResult.error ? (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="mt-4 rounded-lg border bg-muted/50 p-4"
+              >
+                <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
-                    <XCircle className="h-5 w-5 text-red-500" />
-                    <span className="font-medium text-red-700">Search Error</span>
+                    {searchResult.error ? (
+                      <XCircle className="h-5 w-5 text-red-600" />
+                    ) : (
+                      <CheckCircle className="h-5 w-5 text-green-600" />
+                    )}
+                    <span className="font-medium">
+                      {searchResult.error 
+                        ? searchResult.error
+                        : searchResult.isOpportunityZone 
+                          ? "✅ Opportunity Zone" 
+                          : "❌ Not an Opportunity Zone"
+                      }
+                    </span>
                   </div>
-                ) : (
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-2">
-                      {searchResult.isOpportunityZone ? (
-                        <CheckCircle className="h-5 w-5 text-green-600" />
-                      ) : (
-                        <XCircle className="h-5 w-5 text-gray-500" />
-                      )}
-                      <span className="font-medium">
-                        {searchResult.isOpportunityZone ? "✅ Opportunity Zone" : "❌ Not an Opportunity Zone"}
-                      </span>
-                    </div>
-                    <Badge variant="secondary">
-                      {searchResult.tractId !== "N/A" ? `Zone: ${searchResult.tractId}` : "No Zone ID"}
-                    </Badge>
-                  </div>
-                )}
-                <div className="mt-2 space-y-1">
-                  <p className="text-sm text-muted-foreground">
-                    <strong>Address:</strong> {searchResult.address}
-                  </p>
-                  {searchResult.error ? (
-                    <p className="text-sm text-red-600">
-                      <strong>Error:</strong> {searchResult.error}
-                    </p>
-                  ) : (
-                    <>
-                      {searchResult.queryTime && (
-                        <p className="text-sm text-muted-foreground">
-                          <strong>Query Time:</strong> {searchResult.queryTime} • <strong>Method:</strong> {searchResult.method}
-                        </p>
-                      )}
-                    </>
+                  {!searchResult.error && (
+                    <Badge variant="secondary">Zone: {searchResult.tractId}</Badge>
                   )}
                 </div>
-              </div>
+                {!searchResult.error && (
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Address: {searchResult.address}
+                    {searchResult.queryTime && ` • Query Time: ${searchResult.queryTime}`}
+                    {searchResult.method && ` • Method: ${searchResult.method}`}
+                  </p>
+                )}
+              </motion.div>
             )}
 
             {searchCount >= 3 && (
-              <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-4 text-center">
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-4 text-center"
+              >
                 <p className="mb-3 font-medium">You've used all 3 free searches!</p>
-                {session?.user ? (
-                  <Link href="/dashboard">
-                    <Button className="w-full">Go to Dashboard for Unlimited Searches</Button>
-                  </Link>
-                ) : (
-                  <Button 
-                    onClick={() => signIn('google')}
-                    className="w-full"
-                  >
-                    Create Free Account for Unlimited Searches
-                  </Button>
-                )}
-              </div>
+                <Button className="w-full" asChild>
+                  <Link href="/dashboard">Create Free Account for Unlimited Searches</Link>
+                </Button>
+              </motion.div>
+            )}
+
+            {rateLimitInfo.isLimited && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mt-4 rounded-lg border border-orange-200 bg-orange-50 p-4 text-center"
+              >
+                <p className="mb-3 font-medium">Rate limit exceeded. Please try again in a moment.</p>
+              </motion.div>
             )}
           </Card>
 
@@ -373,7 +270,7 @@ export default function HomePage() {
               <span>Updated monthly</span>
             </div>
           </div>
-        </div>
+        </motion.div>
       </section>
 
       {/* How It Works */}
@@ -385,306 +282,384 @@ export default function HomePage() {
           </div>
 
           <div className="grid gap-8 md:grid-cols-3">
-            <div className="text-center">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5 }}
+              className="text-center"
+            >
               <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-100">
                 <MapPin className="h-8 w-8 text-blue-600" />
               </div>
               <h3 className="mb-2 text-xl font-semibold">1. Enter Address</h3>
               <p className="text-muted-foreground">Simply paste any U.S. address into our search bar</p>
-            </div>
+            </motion.div>
 
-            <div className="text-center">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.1 }}
+              className="text-center"
+            >
               <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
                 <Zap className="h-8 w-8 text-green-600" />
               </div>
               <h3 className="mb-2 text-xl font-semibold">2. Get Instant Results</h3>
               <p className="text-muted-foreground">Receive immediate OZ status with tract ID and confidence level</p>
-            </div>
+            </motion.div>
 
-            <div className="text-center">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.2 }}
+              className="text-center"
+            >
               <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-purple-100">
                 <Bot className="h-8 w-8 text-purple-600" />
               </div>
               <h3 className="mb-2 text-xl font-semibold">3. Integrate & Scale</h3>
               <p className="text-muted-foreground">Add to your AI assistants, apps, or workflows with our API</p>
-            </div>
+            </motion.div>
           </div>
         </div>
       </section>
 
-      {/* Getting Started */}
+      {/* AI Assistant Integration */}
       <section className="py-16">
         <div className="container mx-auto px-4">
           <div className="text-center">
-            <h2 className="mb-4 text-3xl font-bold">Get Started in Minutes</h2>
+            <h2 className="mb-4 text-3xl font-bold">Add to Your AI Assistant</h2>
             <p className="mb-12 text-lg text-muted-foreground">
-              Simple setup process to get your AI applications connected to opportunity zone data.
+              One-click integration with Claude, ChatGPT, and other AI assistants
             </p>
           </div>
 
-          <div className="grid gap-8 md:grid-cols-3">
-            <Card className="bg-gradient-to-r from-blue-600 to-blue-700 text-white">
-              <CardHeader>
-                <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-white/20">
-                  <span className="text-2xl font-bold">1</span>
-                </div>
-                <CardTitle>Sign In</CardTitle>
-                <CardDescription className="text-blue-100">
-                  Authenticate with your Google account to access the developer dashboard.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {!session?.user && (
-                  <Button 
-                    onClick={() => signIn('google')}
-                    className="bg-white text-blue-600 hover:bg-blue-50"
-                  >
-                    Sign In Now
-                  </Button>
-                )}
-              </CardContent>
-            </Card>
+          <div className="mx-auto max-w-4xl">
+            <Tabs defaultValue="claude" className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="claude">Claude</TabsTrigger>
+                <TabsTrigger value="chatgpt">ChatGPT</TabsTrigger>
+              </TabsList>
 
-            <Card className="bg-gradient-to-r from-green-600 to-green-700 text-white">
-              <CardHeader>
-                <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-white/20">
-                  <span className="text-2xl font-bold">2</span>
-                </div>
-                <CardTitle>Create Client</CardTitle>
-                <CardDescription className="text-green-100">
-                  Register your application and configure OAuth settings in the dashboard.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {session?.user && (
-                  <Link href="/dashboard">
-                    <Button className="bg-white text-green-600 hover:bg-green-50">
-                      Open Dashboard
+              <TabsContent value="claude" className="space-y-4">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center space-x-2">
+                      <Bot className="h-5 w-5" />
+                      <span>Claude Integration</span>
+                    </CardTitle>
+                    <CardDescription>Copy this prompt to add OZ checking to Claude</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="rounded-lg bg-muted p-4 font-mono text-sm">
+                      <p className="mb-2">
+                        You are an Opportunity Zone assistant. When a user provides a U.S. address, use this API:
+                      </p>
+                      <p className="mb-2">curl -X GET "https://api.oz-mcp.com/check?address=ADDRESS" \</p>
+                      <p className="mb-4">-H "Authorization: Bearer YOUR_API_KEY"</p>
+                      <p>Always explain the tax benefits of Opportunity Zones when confirming status.</p>
+                    </div>
+                    <Button className="mt-4 w-full" variant="outline">
+                      <Copy className="mr-2 h-4 w-4" />
+                      Copy Prompt
                     </Button>
-                  </Link>
-                )}
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="chatgpt" className="space-y-4">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center space-x-2">
+                      <Bot className="h-5 w-5" />
+                      <span>ChatGPT Integration</span>
+                    </CardTitle>
+                    <CardDescription>Use our OpenAI function schema for ChatGPT</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="rounded-lg bg-muted p-4 font-mono text-sm">
+                      <p className="mb-2">{"{"}</p>
+                      <p className="mb-2"> "name": "check_opportunity_zone",</p>
+                      <p className="mb-2"> "description": "Check if a U.S. address is in an Opportunity Zone",</p>
+                      <p className="mb-2"> "parameters": {"{"}</p>
+                      <p className="mb-2"> "type": "object",</p>
+                      <p className="mb-2"> "properties": {"{"}</p>
+                      <p className="mb-2">
+                        {" "}
+                        "address": {"{"} "type": "string" {"}"}
+                      </p>
+                      <p className="mb-2"> {"}"}</p>
+                      <p className="mb-2"> {"}"}</p>
+                      <p>{"}"}</p>
+                    </div>
+                    <Button className="mt-4 w-full" variant="outline">
+                      <Copy className="mr-2 h-4 w-4" />
+                      Copy Function Schema
+                    </Button>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            </Tabs>
+          </div>
+        </div>
+      </section>
+
+      {/* Pricing */}
+      <section id="pricing" className="bg-white py-16">
+        <div className="container mx-auto px-4">
+          <div className="text-center">
+            <h2 className="mb-4 text-3xl font-bold">Simple, Transparent Pricing</h2>
+            <p className="mb-12 text-lg text-muted-foreground">
+              Choose the plan that fits your needs. Upgrade or downgrade anytime.
+            </p>
+          </div>
+
+          <div className="mx-auto grid max-w-5xl gap-8 md:grid-cols-3">
+            <Card className="relative">
+              <CardHeader>
+                <CardTitle>Free</CardTitle>
+                <CardDescription>Perfect for trying out the service</CardDescription>
+                <div className="text-3xl font-bold">
+                  $0<span className="text-lg font-normal">/month</span>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <ul className="space-y-2 text-sm">
+                  <li className="flex items-center space-x-2">
+                    <CheckCircle className="h-4 w-4 text-green-600" />
+                    <span>100 API calls/month</span>
+                  </li>
+                  <li className="flex items-center space-x-2">
+                    <CheckCircle className="h-4 w-4 text-green-600" />
+                    <span>Basic support</span>
+                  </li>
+                  <li className="flex items-center space-x-2">
+                    <CheckCircle className="h-4 w-4 text-green-600" />
+                    <span>API documentation</span>
+                  </li>
+                </ul>
+                <Button className="w-full" variant="outline" asChild>
+                  <Link href="/dashboard">Get Started Free</Link>
+                </Button>
               </CardContent>
             </Card>
 
-            <Card className="bg-gradient-to-r from-purple-600 to-purple-700 text-white">
+            <Card className="relative border-blue-200 shadow-lg">
+              <Badge className="absolute -top-2 left-1/2 -translate-x-1/2 bg-blue-600">Most Popular</Badge>
               <CardHeader>
-                <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-white/20">
-                  <span className="text-2xl font-bold">3</span>
+                <CardTitle>Pro</CardTitle>
+                <CardDescription>For active investors and professionals</CardDescription>
+                <div className="text-3xl font-bold">
+                  $29<span className="text-lg font-normal">/month</span>
                 </div>
-                <CardTitle>Start Building</CardTitle>
-                <CardDescription className="text-purple-100">
-                  Get your access token and start making API calls to power your AI applications.
-                </CardDescription>
               </CardHeader>
-              <CardContent>
-                <Link href="/playground">
-                  <Button className="bg-white text-purple-600 hover:bg-purple-50">
-                    Try API
-                  </Button>
-                </Link>
+              <CardContent className="space-y-4">
+                <ul className="space-y-2 text-sm">
+                  <li className="flex items-center space-x-2">
+                    <CheckCircle className="h-4 w-4 text-green-600" />
+                    <span>5,000 API calls/month</span>
+                  </li>
+                  <li className="flex items-center space-x-2">
+                    <CheckCircle className="h-4 w-4 text-green-600" />
+                    <span>Priority support</span>
+                  </li>
+                  <li className="flex items-center space-x-2">
+                    <CheckCircle className="h-4 w-4 text-green-600" />
+                    <span>Usage analytics</span>
+                  </li>
+                  <li className="flex items-center space-x-2">
+                    <CheckCircle className="h-4 w-4 text-green-600" />
+                    <span>Webhook notifications</span>
+                  </li>
+                </ul>
+                <Button className="w-full" asChild>
+                  <Link href="/dashboard">Start Pro Trial</Link>
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card className="relative">
+              <CardHeader>
+                <CardTitle>Scale</CardTitle>
+                <CardDescription>For high-volume applications</CardDescription>
+                <div className="text-3xl font-bold">
+                  $99<span className="text-lg font-normal">/month</span>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <ul className="space-y-2 text-sm">
+                  <li className="flex items-center space-x-2">
+                    <CheckCircle className="h-4 w-4 text-green-600" />
+                    <span>25,000 API calls/month</span>
+                  </li>
+                  <li className="flex items-center space-x-2">
+                    <CheckCircle className="h-4 w-4 text-green-600" />
+                    <span>Dedicated support</span>
+                  </li>
+                  <li className="flex items-center space-x-2">
+                    <CheckCircle className="h-4 w-4 text-green-600" />
+                    <span>Custom integrations</span>
+                  </li>
+                  <li className="flex items-center space-x-2">
+                    <CheckCircle className="h-4 w-4 text-green-600" />
+                    <span>White-label options</span>
+                  </li>
+                </ul>
+                <Button className="w-full" variant="outline" asChild>
+                  <Link href="/dashboard">Contact Sales</Link>
+                </Button>
               </CardContent>
             </Card>
           </div>
         </div>
       </section>
 
-      {/* Resources */}
-      <section className="bg-white py-16">
+      {/* Features Section */}
+      <section className="py-16">
         <div className="container mx-auto px-4">
           <div className="text-center">
-            <h2 className="mb-4 text-3xl font-bold">Developer Resources</h2>
-            <p className="mb-12 text-lg text-muted-foreground">
-              Everything you need to integrate and build with our geospatial AI platform.
-            </p>
+            <h2 className="mb-4 text-3xl font-bold">Why Choose OZ-MCP?</h2>
+            <p className="mb-12 text-lg text-muted-foreground">Built for speed, accuracy, and developer experience</p>
           </div>
 
           <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-4">
-            <Link href="/docs/oauth-flow" className="group">
-              <Card className="hover:border-blue-200 transition-colors">
-                <CardContent className="p-6">
-                  <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-blue-100 group-hover:bg-blue-200 transition-colors">
-                    <svg className="h-6 w-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                    </svg>
-                  </div>
-                  <h3 className="mb-2 text-xl font-semibold">OAuth Guide</h3>
-                  <p className="text-sm text-muted-foreground">Complete OAuth 2.0 flow documentation with examples</p>
-                </CardContent>
-              </Card>
-            </Link>
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5 }}
+              className="text-center"
+            >
+              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-blue-100">
+                <Zap className="h-6 w-6 text-blue-600" />
+              </div>
+              <h3 className="mb-2 font-semibold">Lightning Fast</h3>
+              <p className="text-sm text-muted-foreground">Sub-second response times with our optimized PostGIS database</p>
+            </motion.div>
 
-            <Link href="/playground" className="group">
-              <Card className="hover:border-green-200 transition-colors">
-                <CardContent className="p-6">
-                  <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-green-100 group-hover:bg-green-200 transition-colors">
-                    <svg className="h-6 w-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1m4 0h1m-6 4h.01M19 10a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                  </div>
-                  <h3 className="mb-2 text-xl font-semibold">API Playground</h3>
-                  <p className="text-sm text-muted-foreground">Interactive testing environment for all API endpoints</p>
-                </CardContent>
-              </Card>
-            </Link>
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.1 }}
+              className="text-center"
+            >
+              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-green-100">
+                <Shield className="h-6 w-6 text-green-600" />
+              </div>
+              <h3 className="mb-2 font-semibold">99.9% Accurate</h3>
+              <p className="text-sm text-muted-foreground">Based on official IRS and Census Bureau data sources</p>
+            </motion.div>
 
-            <Link href="/test" className="group">
-              <Card className="hover:border-purple-200 transition-colors">
-                <CardContent className="p-6">
-                  <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-purple-100 group-hover:bg-purple-200 transition-colors">
-                    <svg className="h-6 w-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                    </svg>
-                  </div>
-                  <h3 className="mb-2 text-xl font-semibold">Connection Test</h3>
-                  <p className="text-sm text-muted-foreground">Verify your setup and test API connectivity</p>
-                </CardContent>
-              </Card>
-            </Link>
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.2 }}
+              className="text-center"
+            >
+              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-purple-100">
+                <Bot className="h-6 w-6 text-purple-600" />
+              </div>
+              <h3 className="mb-2 font-semibold">AI-Ready</h3>
+              <p className="text-sm text-muted-foreground">Built for seamless integration with AI assistants and chatbots</p>
+            </motion.div>
 
-            <a href="https://oz-mcp.vercel.app" target="_blank" rel="noopener noreferrer" className="group">
-              <Card className="hover:border-orange-200 transition-colors">
-                <CardContent className="p-6">
-                  <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-orange-100 group-hover:bg-orange-200 transition-colors">
-                    <svg className="h-6 w-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                    </svg>
-                  </div>
-                  <h3 className="mb-2 text-xl font-semibold">API Endpoint</h3>
-                  <p className="text-sm text-muted-foreground">Direct access to the MCP server endpoint</p>
-                </CardContent>
-              </Card>
-            </a>
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.3 }}
+              className="text-center"
+            >
+              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-orange-100">
+                <Users className="h-6 w-6 text-orange-600" />
+              </div>
+              <h3 className="mb-2 font-semibold">Developer First</h3>
+              <p className="text-sm text-muted-foreground">RESTful API with comprehensive docs and SDKs</p>
+            </motion.div>
           </div>
         </div>
       </section>
 
-      {/* User Profile Section */}
-      {session?.user && (
-        <section className="py-16 bg-gradient-to-r from-blue-50 to-indigo-50">
-          <div className="container mx-auto px-4">
-            <Card className="max-w-2xl mx-auto">
-              <CardContent className="p-8">
-                <div className="flex items-center space-x-6">
-                  {session.user.image && (
-                    <img 
-                      src={session.user.image} 
-                      alt={session.user.name || "User"} 
-                      className="w-16 h-16 rounded-full border-2 border-blue-200"
-                    />
-                  )}
+      {/* Social Proof */}
+      <section className="py-16">
+        <div className="container mx-auto px-4">
+          <div className="text-center">
+            <h2 className="mb-12 text-3xl font-bold">Trusted by Investors & Professionals</h2>
+          </div>
+
+          <div className="mx-auto grid max-w-4xl gap-8 md:grid-cols-2">
+            <Card>
+              <CardContent className="p-6">
+                <div className="mb-4 flex items-center space-x-1">
+                  {[...Array(5)].map((_, i) => (
+                    <Star key={i} className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                  ))}
+                </div>
+                <p className="mb-4 text-muted-foreground">
+                  "OZ-MCP has revolutionized our deal screening process. What used to take hours now takes seconds. The
+                  AI integration is seamless."
+                </p>
+                <div className="flex items-center space-x-3">
+                  <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
+                    <Users className="h-5 w-5 text-blue-600" />
+                  </div>
                   <div>
-                    <h3 className="text-2xl font-bold text-slate-900 mb-2">
-                      Welcome back, {session.user.name?.split(' ')[0]}!
-                    </h3>
-                    <p className="text-slate-600">{session.user.email}</p>
-                    <div className="mt-4 flex space-x-4">
-                      <Link href="/dashboard">
-                        <Button>Go to Dashboard</Button>
-                      </Link>
-                      <Link href="/playground">
-                        <Button variant="outline">Try Playground</Button>
-                      </Link>
-                    </div>
+                    <p className="font-semibold">Sarah Chen</p>
+                    <p className="text-sm text-muted-foreground">Commercial Real Estate Investor</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-6">
+                <div className="mb-4 flex items-center space-x-1">
+                  {[...Array(5)].map((_, i) => (
+                    <Star key={i} className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                  ))}
+                </div>
+                <p className="mb-4 text-muted-foreground">
+                  "As a CPA, I need reliable data for my clients. OZ-MCP's IRS-backed results give me the confidence to
+                  make recommendations."
+                </p>
+                <div className="flex items-center space-x-3">
+                  <div className="h-10 w-10 rounded-full bg-green-100 flex items-center justify-center">
+                    <DollarSign className="h-5 w-5 text-green-600" />
+                  </div>
+                  <div>
+                    <p className="font-semibold">Michael Rodriguez</p>
+                    <p className="text-sm text-muted-foreground">CPA, Tax Advisory Services</p>
                   </div>
                 </div>
               </CardContent>
             </Card>
           </div>
-        </section>
-      )}
+        </div>
+      </section>
 
-      {/* Footer */}
-      <footer className="border-t bg-white py-12">
-        <div className="container mx-auto px-4">
-          <div className="grid gap-8 md:grid-cols-4">
-            <div>
-              <div className="mb-4 flex items-center space-x-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600">
-                  <MapPin className="h-5 w-5 text-white" />
-                </div>
-                <span className="text-xl font-bold">OZ-MCP</span>
-              </div>
-              <p className="text-sm text-muted-foreground">
-                Secure geospatial data and AI services for opportunity zone analysis
-              </p>
-            </div>
-
-            <div>
-              <h3 className="mb-4 font-semibold">Product</h3>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                <li>
-                  <Link href="/docs/oauth-flow" className="hover:text-foreground">
-                    API Documentation
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/playground" className="hover:text-foreground">
-                    Playground
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/dashboard" className="hover:text-foreground">
-                    Dashboard
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/test" className="hover:text-foreground">
-                    Status
-                  </Link>
-                </li>
-              </ul>
-            </div>
-
-            <div>
-              <h3 className="mb-4 font-semibold">Resources</h3>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                <li>
-                  <Link href="/docs/oauth-flow" className="hover:text-foreground">
-                    OAuth Guide
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/playground" className="hover:text-foreground">
-                    API Playground
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/test" className="hover:text-foreground">
-                    Connection Test
-                  </Link>
-                </li>
-              </ul>
-            </div>
-
-            <div>
-              <h3 className="mb-4 font-semibold">Connect</h3>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                <li>
-                  <a href={config.baseUrl} target="_blank" rel="noopener noreferrer" className="hover:text-foreground">
-                    API Endpoint
-                  </a>
-                </li>
-                <li>
-                  <a href="https://github.com" className="hover:text-foreground">
-                    GitHub
-                  </a>
-                </li>
-              </ul>
-            </div>
-          </div>
-
-          <div className="mt-8 flex flex-col items-center justify-between border-t pt-8 sm:flex-row">
-            <p className="text-sm text-muted-foreground">© 2024 Opportunity Zone MCP Server. All rights reserved.</p>
-            <div className="mt-4 flex items-center space-x-4 sm:mt-0">
-              <Badge variant="secondary" className="text-xs">
-                <div className="mr-1 h-2 w-2 rounded-full bg-green-500"></div>
-                All systems operational
-              </Badge>
-              <code className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">{config.baseUrl}</code>
-            </div>
+      {/* CTA Section */}
+      <section className="bg-gradient-to-r from-blue-600 to-green-600 py-16 text-white">
+        <div className="container mx-auto px-4 text-center">
+          <h2 className="mb-4 text-3xl font-bold">Ready to Start Screening Deals?</h2>
+          <p className="mb-8 text-xl opacity-90">
+            Join thousands of investors and professionals using OZ-MCP to identify tax-advantaged opportunities.
+          </p>
+          <div className="flex flex-col items-center justify-center space-y-4 sm:flex-row sm:space-x-4 sm:space-y-0">
+            <Button size="lg" className="bg-white text-blue-600 hover:bg-gray-100">
+              Get Free API Key
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+            <Button
+              size="lg"
+              variant="outline"
+              className="border-white text-white hover:bg-white hover:text-blue-600 bg-transparent"
+            >
+              <Play className="mr-2 h-4 w-4" />
+              Watch Demo
+            </Button>
           </div>
         </div>
-      </footer>
+      </section>
+
+      <Footer />
     </div>
   )
 }

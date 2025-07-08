@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { CheckCircle, XCircle, Clock, AlertTriangle } from 'lucide-react';
+import { Footer } from "@/components/Footer"
 
 export default function TestPage() {
   const [status, setStatus] = useState<string>('Ready to test');
@@ -419,6 +420,8 @@ export default function TestPage() {
           </div>
         </div>
       </div>
+
+      <Footer />
     </div>
   );
 } 

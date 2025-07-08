@@ -23,8 +23,11 @@ import {
   Clock,
   Database,
   Shield,
-  ExternalLink
+  ExternalLink,
+  AlertTriangle,
+  Info
 } from 'lucide-react';
+import { Footer } from "@/components/Footer"
 
 interface ApiResponse {
   content?: Array<{
@@ -700,6 +703,8 @@ export default function PlaygroundPage() {
           </div>
         </div>
       </div>
+
+      <Footer />
     </div>
   );
 }

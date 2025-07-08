@@ -5,6 +5,7 @@ import { randomBytes } from 'crypto';
 import { headers } from 'next/headers';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+import { Footer } from "@/components/Footer"
 
 export default async function AuthorizePage({
   searchParams,
@@ -330,6 +331,8 @@ export default async function AuthorizePage({
           </p>
         </div>
       </div>
+
+      <Footer />
     </div>
   );
 } 

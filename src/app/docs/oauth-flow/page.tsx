@@ -16,6 +16,7 @@ import {
   Settings,
   RefreshCw
 } from 'lucide-react';
+import { Footer } from "@/components/Footer"
 
 export default function OAuthFlowPage() {
   return (
@@ -409,6 +410,8 @@ Content-Type: application/json
           </Card>
         </div>
       </div>
+
+      <Footer />
     </div>
   );
 }

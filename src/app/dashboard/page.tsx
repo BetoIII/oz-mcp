@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Copy, ExternalLink, Key, Trash2, User, Shield, Clock, Database } from 'lucide-react';
 import { config } from '@/lib/utils';
+import { Footer } from "@/components/Footer"
 
 export default async function DashboardPage() {
   const session = await auth();
@@ -397,6 +398,8 @@ export default async function DashboardPage() {
           </div>
         </div>
       </div>
+
+      <Footer />
     </div>
   );
 }

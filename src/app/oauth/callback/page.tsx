@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { Footer } from "@/components/Footer"
 
 export default function OAuthCallbackPage() {
   const searchParams = useSearchParams();
@@ -286,6 +287,7 @@ export default function OAuthCallbackPage() {
           </div>
         </div>
 
+        <Footer />
         <style jsx>{`
           @keyframes fade-in {
             from {

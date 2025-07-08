@@ -4,6 +4,7 @@
 
 import { useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { Footer } from "@/components/Footer"
 
 export default function CallbackPage() {
   const searchParams = useSearchParams();
@@ -35,6 +36,8 @@ export default function CallbackPage() {
           </p>
         </div>
       </div>
+
+      <Footer />
     </div>
   );
 } 
