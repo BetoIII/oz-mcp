@@ -223,49 +223,6 @@ export async function POST(request: NextRequest) {
         }
         break;
 
-      case 'refresh_oz_data':
-        try {
-          await opportunityZoneService.forceRefresh(log);
-          const metrics = opportunityZoneService.getCacheMetrics();
-          
-          const responseText = [
-            "✅ Opportunity zone data refreshed successfully!",
-            "",
-            `Feature count: ${metrics.featureCount}`,
-            `Data version: ${metrics.version}`,
-            `Last updated: ${metrics.lastUpdated?.toISOString()}`,
-            `Next refresh due: ${metrics.nextRefreshDue?.toISOString()}`,
-            "",
-            ...messages
-          ].join('\n');
-
-          result = {
-            content: [
-              {
-                type: "text",
-                text: responseText,
-              },
-            ],
-          };
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-          const fullResponse = [
-            `❌ Failed to refresh opportunity zone data: ${errorMessage}`,
-            '',
-            ...messages
-          ].join('\n');
-
-          result = {
-            content: [
-              {
-                type: "text",
-                text: fullResponse,
-              },
-            ],
-          };
-        }
-        break;
-
       default:
         return NextResponse.json({ 
           error: `Unknown tool: ${name}` 

@@ -455,11 +455,6 @@ export default function PlaygroundClient() {
       description: 'Get opportunity zone service status and cache information',
       parameters: {},
     },
-    refresh_oz_data: {
-      name: 'Refresh Data',
-      description: 'Force refresh of opportunity zone data',
-      parameters: {},
-    },
   };
 
   return (

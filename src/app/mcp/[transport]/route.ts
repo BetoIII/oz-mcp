@@ -243,60 +243,6 @@ const handler = async (req: Request) => {
           }
         }
       );
-
-      server.tool(
-        "refresh_oz_data",
-        "Force refresh of opportunity zone data",
-        {},
-        async () => {
-          const messages: string[] = [];
-          const log = (type: string, message: string) => {
-            messages.push(`[${type.toUpperCase()}] ${message}`);
-            console.log(`[${type.toUpperCase()}] ${message}`);
-          };
-
-          try {
-            await opportunityZoneService.forceRefresh(log);
-            const metrics = opportunityZoneService.getCacheMetrics();
-            
-            const responseText = [
-              "✅ Opportunity zone data refreshed successfully!",
-              "",
-              `Feature count: ${metrics.featureCount}`,
-              `Data version: ${metrics.version}`,
-              `Last updated: ${metrics.lastUpdated?.toISOString()}`,
-              `Next refresh due: ${metrics.nextRefreshDue?.toISOString()}`,
-              "",
-              ...messages
-            ].join('\n');
-
-            return {
-              content: [
-                {
-                  type: "text",
-                  text: responseText,
-                },
-              ],
-            };
-          } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-            const fullResponse = [
-              `❌ Failed to refresh opportunity zone data: ${errorMessage}`,
-              '',
-              ...messages
-            ].join('\n');
-
-            return {
-              content: [
-                {
-                  type: "text",
-                  text: fullResponse,
-                },
-              ],
-            };
-          }
-        }
-      );
     },
     {
       // Optionally add server capabilities here
