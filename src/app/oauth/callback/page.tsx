@@ -124,7 +124,7 @@ function OAuthCallbackContent() {
         // Store the access token (in a real app, you'd want to store this securely)
         localStorage.setItem('oauth_access_token', data.access_token);
         localStorage.setItem('oauth_token_type', data.token_type || 'Bearer');
-        localStorage.setItem('oauth_expires_in', data.expires_in?.toString() || '3600');
+        localStorage.setItem('oauth_expires_in', data.expires_in?.toString() || '31536000');
 
         // Clean up temporary OAuth parameters
         localStorage.removeItem('oauth_client_id');
@@ -237,7 +237,7 @@ function OAuthCallbackContent() {
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-gray-600">Expires In:</span>
-                  <code className="text-gray-800 bg-white px-3 py-1 rounded border">{tokenResponse?.expires_in || 3600}s</code>
+                  <code className="text-gray-800 bg-white px-3 py-1 rounded border">1 year</code>
                 </div>
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
@@ -275,7 +275,7 @@ function OAuthCallbackContent() {
                 </li>
                 <li className="flex items-start space-x-2">
                   <div className="w-2 h-2 bg-blue-600 rounded-full mt-2"></div>
-                  <span>The API key will expire in {tokenResponse?.expires_in || 3600} seconds</span>
+                  <span>The API key will expire in 1 year</span>
                 </li>
               </ul>
             </div>

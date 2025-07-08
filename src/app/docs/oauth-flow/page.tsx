@@ -310,7 +310,7 @@ grant_type=authorization_code
 {`{
   "access_token": "your_access_token_here",
   "token_type": "Bearer",
-  "expires_in": 3600
+  "expires_in": 31536000
 }`}
                     </pre>
                   </CardContent>
