@@ -194,22 +194,22 @@ export default function HomePage() {
       <Navbar variant="default" />
 
       {/* Hero Section */}
-      <section className="container mx-auto px-4 py-16 text-center">
+      <section className="container mx-auto px-4 py-20 text-center">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
-          <Badge className="mb-4 bg-blue-100 text-blue-700 hover:bg-blue-100">
+          <Badge className="mb-8 bg-blue-100 text-blue-700 hover:bg-blue-100">
             <Zap className="mr-1 h-3 w-3" />
             Instant Opportunity Zone Verification
           </Badge>
-          <h1 className="mb-6 text-4xl font-bold tracking-tight sm:text-6xl">
+          <h1 className="mb-10 text-4xl font-bold tracking-tight sm:text-6xl">
             Check Any U.S. Address for{" "}
             <span className="bg-gradient-to-r from-blue-600 to-green-600 bg-clip-text text-transparent">
-              Opportunity Zone Status
+              Opportunity Zone Eligibility
             </span>{" "}
             in Seconds
           </h1>
-          <p className="mx-auto mb-8 max-w-2xl text-xl text-muted-foreground">
-            Instantly verify U.S. Opportunity Zone eligibility for any address. Empower investors, CPAs, and PropTech
-            builders to identify lucrative, tax-advantaged deals with our lightning-fast API.
+          <p className="mx-auto mb-16 max-w-2xl text-xl text-muted-foreground">
+            Instantly verify Qualified Opportunity Zone (QOZ) eligibility for any U.S. address. Empowering investors, CPAs, and PropTech
+            builders with our lightning-fast API.
           </p>
         </motion.div>
 
@@ -306,7 +306,7 @@ export default function HomePage() {
             )}
           </Card>
 
-          <div className="mt-4 flex items-center justify-center space-x-4 text-sm text-muted-foreground">
+          <div className="my-8 flex items-center justify-center space-x-4 text-sm text-muted-foreground">
             <div className="flex items-center space-x-1">
               <Shield className="h-4 w-4" />
               <span>Powered by IRS/Census data</span>
@@ -571,7 +571,7 @@ export default function HomePage() {
         <div className="container mx-auto px-4">
           <div className="text-center">
             <h2 className="mb-4 text-3xl font-bold">Why Choose OZ-MCP?</h2>
-            <p className="mb-12 text-lg text-muted-foreground">Built for speed, accuracy, and developer experience</p>
+            <p className="mb-12 text-lg text-muted-foreground">Built for speed, accuracy, and scalability.</p>
           </div>
 
           <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-4">
@@ -623,7 +623,7 @@ export default function HomePage() {
               <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-orange-100">
                 <Users className="h-6 w-6 text-orange-600" />
               </div>
-              <h3 className="mb-2 font-semibold">Developer First</h3>
+              <h3 className="mb-2 font-semibold">Developer Friendly</h3>
               <p className="text-sm text-muted-foreground">RESTful API with comprehensive docs and SDKs</p>
             </motion.div>
           </div>
@@ -634,7 +634,7 @@ export default function HomePage() {
       <section className="py-16">
         <div className="container mx-auto px-4">
           <div className="text-center">
-            <h2 className="mb-12 text-3xl font-bold">Trusted by Investors & Professionals</h2>
+            <h2 className="mb-12 text-3xl font-bold">Trusted by Investors & Real Estate Professionals</h2>
           </div>
 
           <div className="mx-auto grid max-w-4xl gap-8 md:grid-cols-2">
@@ -646,16 +646,16 @@ export default function HomePage() {
                   ))}
                 </div>
                 <p className="mb-4 text-muted-foreground">
-                  "OZ-MCP has revolutionized our deal screening process. What used to take hours now takes seconds. The
-                  AI integration is seamless."
+                  "OZ-MCP has real value for our deal screening process. What used to take hours now takes seconds. And the Claude
+                  integration is seamless."
                 </p>
                 <div className="flex items-center space-x-3">
                   <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
                     <Users className="h-5 w-5 text-blue-600" />
                   </div>
                   <div>
-                    <p className="font-semibold">Sarah Chen</p>
-                    <p className="text-sm text-muted-foreground">Commercial Real Estate Investor</p>
+                    <p className="font-semibold">Richard M.</p>
+                    <p className="text-sm text-muted-foreground">Commercial Real Estate Developer</p>
                   </div>
                 </div>
               </CardContent>
@@ -692,7 +692,7 @@ export default function HomePage() {
         <div className="container mx-auto px-4 text-center">
           <h2 className="mb-4 text-3xl font-bold">Ready to Start Screening Deals?</h2>
           <p className="mb-8 text-xl opacity-90">
-            Join thousands of investors and professionals using OZ-MCP to identify tax-advantaged opportunities.
+            Join investors and professionals using OZ-MCP to identify tax-advantaged opportunities.
           </p>
           <div className="flex flex-col items-center justify-center space-y-4 sm:flex-row sm:space-x-4 sm:space-y-0">
             <Button size="lg" className="bg-white text-blue-600 hover:bg-gray-100" asChild>
