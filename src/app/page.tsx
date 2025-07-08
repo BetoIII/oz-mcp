@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -41,10 +41,32 @@ export default function HomePage() {
     error?: string;
   } | null>(null)
   const [isSearching, setIsSearching] = useState(false)
-  const [rateLimitInfo, setRateLimitInfo] = useState<{
-    isLimited: boolean;
-    resetTime?: number;
-  }>({ isLimited: false })
+  const [lockoutInfo, setLockoutInfo] = useState<{
+    isLocked: boolean;
+    lockedUntil?: string;
+    message?: string;
+  }>({ isLocked: false })
+
+  // Check search status on page load
+  useEffect(() => {
+    const checkSearchStatus = async () => {
+      try {
+        const response = await fetch('/api/opportunity-zones/validate-search')
+        if (response.ok) {
+          const data = await response.json()
+          setSearchCount(data.searchCount)
+          setLockoutInfo({
+            isLocked: data.isLocked,
+            lockedUntil: data.lockedUntil,
+            message: data.isLocked ? 'You are locked out from free searches.' : undefined
+          })
+        }
+      } catch (error) {
+        console.error('Failed to check search status:', error)
+      }
+    }
+    checkSearchStatus()
+  }, [])
 
   // Function to parse MCP-style response text
   const parseOZResponse = (text: string) => {
@@ -89,22 +111,36 @@ export default function HomePage() {
   };
 
   const handleSearch = async () => {
-    if (!searchValue.trim() || searchCount >= 3 || rateLimitInfo.isLimited) return
+    if (!searchValue.trim() || lockoutInfo.isLocked) return
 
     setIsSearching(true)
-    setRateLimitInfo({ isLimited: false })
+    setLockoutInfo(prev => ({ ...prev, message: undefined }))
     
     try {
+      // First, validate the search attempt
+      const validationResponse = await fetch('/api/opportunity-zones/validate-search', {
+        method: 'POST'
+      })
+      
+      const validationData = await validationResponse.json()
+      
+      if (!validationData.allowed) {
+        setLockoutInfo({
+          isLocked: validationData.reason === 'locked_out' || validationData.reason === 'limit_exceeded',
+          lockedUntil: validationData.lockedUntil,
+          message: validationData.message
+        })
+        setSearchCount(validationData.searchCount || searchCount)
+        setIsSearching(false)
+        return
+      }
+
+      // Update search count from validation
+      setSearchCount(validationData.searchCount)
+
+      // Proceed with the actual search
       // Use the MCP-style check with address parameter
       const ozResponse = await fetch(`/api/opportunity-zones/check?address=${encodeURIComponent(searchValue)}&format=mcp`)
-      
-      // Check for rate limiting
-      if (ozResponse.status === 429) {
-        const retryAfter = ozResponse.headers.get('Retry-After')
-        const resetTime = retryAfter ? Date.now() + (parseInt(retryAfter) * 1000) : Date.now() + 60000
-        setRateLimitInfo({ isLimited: true, resetTime })
-        throw new Error('Rate limit exceeded. Please try again later.')
-      }
       
       if (!ozResponse.ok) {
         throw new Error(`Opportunity zone check failed: ${ozResponse.status}`)
@@ -118,7 +154,6 @@ export default function HomePage() {
         const parsed = parseOZResponse(ozData.result.content[0].text);
         if (parsed) {
           setSearchResult(parsed);
-          setSearchCount((prev) => prev + 1);
           setIsSearching(false);
           return;
         }
@@ -133,13 +168,6 @@ export default function HomePage() {
         body: JSON.stringify({ address: searchValue }),
       })
 
-      if (geocodeResponse.status === 429) {
-        const retryAfter = geocodeResponse.headers.get('Retry-After')
-        const resetTime = retryAfter ? Date.now() + (parseInt(retryAfter) * 1000) : Date.now() + 60000
-        setRateLimitInfo({ isLimited: true, resetTime })
-        throw new Error('Rate limit exceeded. Please try again later.')
-      }
-
       if (!geocodeResponse.ok) {
         throw new Error(`Geocoding failed: ${geocodeResponse.status}`)
       }
@@ -147,13 +175,6 @@ export default function HomePage() {
       const geocodeData = await geocodeResponse.json()
       
       const ozResponse2 = await fetch(`/api/opportunity-zones/check?lat=${geocodeData.latitude}&lon=${geocodeData.longitude}`)
-      
-      if (ozResponse2.status === 429) {
-        const retryAfter = ozResponse2.headers.get('Retry-After')
-        const resetTime = retryAfter ? Date.now() + (parseInt(retryAfter) * 1000) : Date.now() + 60000
-        setRateLimitInfo({ isLimited: true, resetTime })
-        throw new Error('Rate limit exceeded. Please try again later.')
-      }
       
       if (!ozResponse2.ok) {
         throw new Error(`Opportunity zone check failed: ${ozResponse2.status}`)
@@ -170,7 +191,7 @@ export default function HomePage() {
         method: ozData2.metadata?.method || "unknown",
         coordinates: { lat: geocodeData.latitude, lon: geocodeData.longitude }
       })
-      setSearchCount((prev) => prev + 1)
+      
     } catch (error) {
       console.error('Search error:', error)
       
@@ -181,13 +202,13 @@ export default function HomePage() {
         confidence: "Error",
         error: error instanceof Error ? error.message : 'Search failed. Please try again.'
       })
-      setSearchCount((prev) => prev + 1)
     }
     
     setIsSearching(false)
   }
 
   const progressPercentage = (searchCount / 3) * 100
+  const remainingSearches = Math.max(0, 3 - searchCount)
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50">
@@ -224,22 +245,30 @@ export default function HomePage() {
             <div className="mb-4 flex items-center justify-between">
               <span className="text-sm font-medium">Free Trial</span>
               <div className="flex items-center space-x-2">
-                <span className="text-sm text-muted-foreground">{searchCount}/3 searches used</span>
+                <span className="text-sm text-muted-foreground">
+                  {lockoutInfo.isLocked 
+                    ? "Locked out" 
+                    : `${searchCount}/3 searches used`
+                  }
+                </span>
                 <Progress value={progressPercentage} className="w-20" />
               </div>
             </div>
 
             <div className="flex space-x-2">
               <Input
-                placeholder="Enter any U.S. address (e.g., 123 Main St, New York, NY)"
+                placeholder={lockoutInfo.isLocked 
+                  ? "Locked out - Create account for unlimited searches" 
+                  : "Enter any U.S. address (e.g., 123 Main St, New York, NY)"
+                }
                 value={searchValue}
                 onChange={(e) => setSearchValue(e.target.value)}
                 className="flex-1"
-                disabled={searchCount >= 3 || rateLimitInfo.isLimited}
+                disabled={lockoutInfo.isLocked}
               />
               <Button
                 onClick={handleSearch}
-                disabled={!searchValue.trim() || searchCount >= 3 || isSearching || rateLimitInfo.isLimited}
+                disabled={!searchValue.trim() || lockoutInfo.isLocked || isSearching}
                 className="px-6"
               >
                 {isSearching ? "Checking..." : "Check OZ Status"}
@@ -282,7 +311,7 @@ export default function HomePage() {
               </motion.div>
             )}
 
-            {searchCount >= 3 && (
+            {searchCount >= 3 && !lockoutInfo.isLocked && (
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -295,13 +324,20 @@ export default function HomePage() {
               </motion.div>
             )}
 
-            {rateLimitInfo.isLimited && (
+            {lockoutInfo.isLocked && (
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 className="mt-4 rounded-lg border border-orange-200 bg-orange-50 p-4 text-center"
               >
-                <p className="mb-3 font-medium">Rate limit exceeded. Please try again in a moment.</p>
+                <p className="mb-3 font-medium">
+                  {lockoutInfo.message || 'You are currently locked out from free searches.'}
+                </p>
+                {lockoutInfo.lockedUntil && (
+                  <p className="text-sm text-muted-foreground">
+                    Locked until: {new Date(lockoutInfo.lockedUntil).toLocaleDateString()}
+                  </p>
+                )}
               </motion.div>
             )}
           </Card>
