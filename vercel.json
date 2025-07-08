@@ -1,5 +1,7 @@
 {
-  "env": {
-    "NEXT_PUBLIC_DEPLOYMENT_DATE": "@now"
+  "functions": {
+    "src/app/**/*.ts": {
+      "maxDuration": 30
+    }
   }
 } 
