@@ -695,9 +695,11 @@ export default function HomePage() {
             Join thousands of investors and professionals using OZ-MCP to identify tax-advantaged opportunities.
           </p>
           <div className="flex flex-col items-center justify-center space-y-4 sm:flex-row sm:space-x-4 sm:space-y-0">
-            <Button size="lg" className="bg-white text-blue-600 hover:bg-gray-100">
-              Get Free API Key
-              <ArrowRight className="ml-2 h-4 w-4" />
+            <Button size="lg" className="bg-white text-blue-600 hover:bg-gray-100" asChild>
+              <Link href="/playground">
+                Get Free API Key
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Link>
             </Button>
             <Button
               size="lg"

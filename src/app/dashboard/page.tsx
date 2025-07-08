@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { UserAvatar } from '@/components/ui/user-avatar';
 import { Copy, ExternalLink, Key, Trash2, User, Shield, Clock, Database, Plus } from 'lucide-react';
 import { config } from '@/lib/utils';
 import { Footer } from "@/components/Footer"
@@ -195,13 +196,12 @@ export default async function DashboardPage() {
           <CardContent className="p-8">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-4">
-                {session.user!.image && (
-                  <img 
-                    src={session.user!.image} 
-                    alt={session.user!.name || "User"} 
-                    className="w-16 h-16 rounded-full border-2 border-blue-200"
-                  />
-                )}
+                <UserAvatar
+                  src={session.user!.image}
+                  name={session.user!.name}
+                  alt={session.user!.name || "User"}
+                  className="w-16 h-16 border-2 border-blue-200"
+                />
                 <div>
                   <h1 className="text-3xl font-bold text-slate-900">
                     Welcome, {session.user!.name?.split(' ')[0]}!
@@ -376,13 +376,12 @@ export default async function DashboardPage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex items-center space-x-3">
-                  {session.user!.image && (
-                    <img 
-                      src={session.user!.image} 
-                      alt={session.user!.name || "User"} 
-                      className="w-10 h-10 rounded-full"
-                    />
-                  )}
+                  <UserAvatar
+                    src={session.user!.image}
+                    name={session.user!.name}
+                    alt={session.user!.name || "User"}
+                    className="w-10 h-10"
+                  />
                   <div>
                     <p className="font-medium">{session.user!.name}</p>
                     <p className="text-sm text-slate-600">{session.user!.email}</p>

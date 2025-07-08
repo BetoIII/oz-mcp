@@ -459,7 +459,7 @@ export default function PlaygroundClient() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50">
-      <Navbar variant="playground" icon={<Play className="h-5 w-5 text-white" />} />
+      <Navbar variant="playground" />
 
       <div className="container mx-auto px-4 py-8">
         {/* Service Status */}
@@ -496,7 +496,7 @@ export default function PlaygroundClient() {
               <div className="flex items-center space-x-2">
                 <Database className="h-5 w-5 text-blue-600" />
                 <span className="text-sm">
-                  {serviceStatus.featureCount || 0} features loaded
+                  {serviceStatus.featureCount || 0} census tracts loaded
                 </span>
               </div>
               <div className="flex items-center space-x-2">

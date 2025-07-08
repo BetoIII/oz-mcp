@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { MapPin } from "lucide-react"
+import Image from "next/image"
 import { Badge } from "@/components/ui/badge"
 
 export function Footer() {
@@ -9,8 +9,8 @@ export function Footer() {
         <div className="grid gap-8 md:grid-cols-4">
           <div>
             <div className="mb-4 flex items-center space-x-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600">
-                <MapPin className="h-5 w-5 text-white" />
+              <div className="flex items-center justify-center">
+                <Image src="/oz-mcp-pin-icon.png" alt="OZ-MCP Logo" width={35} height={35} className="object-contain" />
               </div>
               <span className="text-xl font-bold">OZ-MCP</span>
             </div>
@@ -89,13 +89,21 @@ export function Footer() {
         </div>
 
         <div className="mt-8 flex flex-col items-center justify-between border-t pt-8 sm:flex-row">
-          <p className="text-sm text-muted-foreground">© 2024 OZ-MCP. All rights reserved.</p>
+          <p className="text-sm text-muted-foreground">© {new Date().getFullYear()} OZ-MCP. All rights reserved.</p>
           <div className="mt-4 flex items-center space-x-4 sm:mt-0">
             <Badge variant="secondary" className="text-xs">
               <div className="mr-1 h-2 w-2 rounded-full bg-green-500"></div>
               All systems operational
             </Badge>
-            <span className="text-xs text-muted-foreground">Last updated: Dec 2024</span>
+            <span className="text-xs text-muted-foreground">
+              Last deployed: {process.env.NEXT_PUBLIC_DEPLOYMENT_DATE 
+                ? new Date(process.env.NEXT_PUBLIC_DEPLOYMENT_DATE).toLocaleDateString('en-US', { 
+                    month: 'short', 
+                    year: 'numeric' 
+                  })
+                : 'Unknown'
+              }
+            </span>
           </div>
         </div>
       </div>
