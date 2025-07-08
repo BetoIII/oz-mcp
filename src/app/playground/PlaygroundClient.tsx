@@ -496,7 +496,7 @@ export default function PlaygroundClient() {
               <div className="flex items-center space-x-2">
                 <Database className="h-5 w-5 text-blue-600" />
                 <span className="text-sm">
-                  {serviceStatus.featureCount || 0} census tracts loaded
+                  {serviceStatus.featureCount || 0} Census tracts loaded
                 </span>
               </div>
               <div className="flex items-center space-x-2">

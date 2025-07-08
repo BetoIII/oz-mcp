@@ -6,7 +6,6 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
 import { 
   ArrowLeft, 
-  Book, 
   Shield, 
   Key, 
   ExternalLink, 
@@ -22,7 +21,7 @@ import { Navbar } from "@/components/Navbar"
 export default function OAuthFlowPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50">
-      <Navbar variant="docs" icon={<Book className="h-5 w-5 text-white" />} title="OAuth Documentation" />
+      <Navbar variant="docs" title="OAuth Documentation" />
 
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto">

@@ -15,7 +15,7 @@ export function Footer() {
               <span className="text-xl font-bold">OZ-MCP</span>
             </div>
             <p className="text-sm text-muted-foreground">
-              Instant Opportunity Zone verification for smarter investment decisions.
+              Instant Opportunity Zone verification.
             </p>
           </div>
 
@@ -32,16 +32,6 @@ export function Footer() {
                   Playground
                 </Link>
               </li>
-              <li>
-                <Link href="#" className="hover:text-foreground">
-                  Pricing
-                </Link>
-              </li>
-              <li>
-                <Link href="#" className="hover:text-foreground">
-                  Status
-                </Link>
-              </li>
             </ul>
           </div>
 
@@ -49,18 +39,8 @@ export function Footer() {
             <h3 className="mb-4 font-semibold">Support</h3>
             <ul className="space-y-2 text-sm text-muted-foreground">
               <li>
-                <Link href="#" className="hover:text-foreground">
-                  Help Center
-                </Link>
-              </li>
-              <li>
-                <Link href="#" className="hover:text-foreground">
+                <Link href="mailto:beto@agiato.llc" className="hover:text-foreground">
                   Contact Us
-                </Link>
-              </li>
-              <li>
-                <Link href="#" className="hover:text-foreground">
-                  System Status
                 </Link>
               </li>
             </ul>
@@ -79,17 +59,12 @@ export function Footer() {
                   Terms of Service
                 </Link>
               </li>
-              <li>
-                <Link href="#" className="hover:text-foreground">
-                  GDPR
-                </Link>
-              </li>
             </ul>
           </div>
         </div>
 
         <div className="mt-8 flex flex-col items-center justify-between border-t pt-8 sm:flex-row">
-          <p className="text-sm text-muted-foreground">© {new Date().getFullYear()} OZ-MCP. All rights reserved.</p>
+          <p className="text-sm text-muted-foreground">© {new Date().getFullYear()} Agiato LLC. All rights reserved.</p>
           <div className="mt-4 flex items-center space-x-4 sm:mt-0">
             <Badge variant="secondary" className="text-xs">
               <div className="mr-1 h-2 w-2 rounded-full bg-green-500"></div>

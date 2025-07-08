@@ -43,17 +43,7 @@ export function Navbar({ variant = 'default', title, icon }: NavbarProps) {
 
   const getIcon = () => {
     if (icon) return icon
-    
-    switch (variant) {
-      case 'playground':
-        return <Image src="/oz-mcp-pin-icon.png" alt="OZ-MCP Logo" width={35} height={35} className="object-contain" />
-      case 'dashboard':
-        return <Settings className="h-5 w-5 text-white" />
-      case 'docs':
-        return <Image src="/oz-mcp-pin-icon.png" alt="OZ-MCP Logo" width={35} height={35} className="object-contain" />
-      default:
-        return <Image src="/oz-mcp-pin-icon.png" alt="OZ-MCP Logo" width={35} height={35} className="object-contain" />
-    }
+    return <Image src="/oz-mcp-pin-icon.png" alt="OZ-MCP Logo" width={35} height={35} className="object-contain" />
   }
 
   const handleSignOut = async () => {
