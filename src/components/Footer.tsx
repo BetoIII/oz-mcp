@@ -28,7 +28,7 @@ export function Footer() {
                 </Link>
               </li>
               <li>
-                <Link href="#" className="hover:text-foreground">
+                <Link href="/playground" className="hover:text-foreground">
                   Playground
                 </Link>
               </li>

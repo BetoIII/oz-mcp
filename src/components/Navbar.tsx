@@ -57,7 +57,7 @@ export function Navbar({ variant = 'default', title, icon }: NavbarProps) {
 
   const navLinks = [
     { href: '/docs/oauth-flow', label: 'Docs', showAlways: true },
-    { href: '/playground', label: 'Playground', requiresAuth: true },
+    { href: '/playground', label: 'Playground', showAlways: true },
     { href: '/dashboard', label: 'Dashboard', requiresAuth: true },
   ]
 

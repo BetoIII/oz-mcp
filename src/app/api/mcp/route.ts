@@ -3,6 +3,9 @@ import { prisma } from '@/app/prisma';
 import { opportunityZoneService } from '@/lib/services/opportunity-zones';
 import { geocodingService } from '@/lib/services/geocoding';
 
+// Temporary token usage tracking (in-memory for simplicity)
+const tempTokenUsage = new Map<string, number>();
+
 // Authentication helper
 async function authenticateRequest(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
@@ -30,10 +33,28 @@ async function authenticateRequest(request: NextRequest) {
       return null;
     }
 
+    // Check if this is a temporary token and validate usage limit
+    if (token.startsWith('temp_')) {
+      const currentUsage = tempTokenUsage.get(token) || 0;
+      if (currentUsage >= 3) {
+        return { ...accessToken, usageExceeded: true };
+      }
+      // Don't increment here - only after successful operations
+      return { ...accessToken, usageCount: currentUsage, isTemporary: true, token };
+    }
+
     return accessToken;
   } catch (e) {
     console.error('Error validating token:', e);
     return null;
+  }
+}
+
+// Helper function to increment temporary token usage
+function incrementTempTokenUsage(token: string): void {
+  if (token.startsWith('temp_')) {
+    const currentUsage = tempTokenUsage.get(token) || 0;
+    tempTokenUsage.set(token, currentUsage + 1);
   }
 }
 
@@ -43,6 +64,15 @@ export async function POST(request: NextRequest) {
     const accessToken = await authenticateRequest(request);
     if (!accessToken) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Check if temporary token usage is exceeded
+    if ((accessToken as any).usageExceeded) {
+      return NextResponse.json({ 
+        error: 'Temporary API key usage limit exceeded',
+        message: 'You have used all 3 requests for this temporary API key. Please create a new temporary key or signup for a free account.',
+        code: 'TEMP_KEY_LIMIT_EXCEEDED'
+      }, { status: 429 });
     }
 
     // Parse the request body
@@ -73,6 +103,7 @@ export async function POST(request: NextRequest) {
     };
 
     let result;
+    let shouldIncrementUsage = false;
 
     switch (name) {
       case 'check_opportunity_zone':
@@ -83,6 +114,33 @@ export async function POST(request: NextRequest) {
           if (address) {
             // Geocode the address first
             const geocodeResult = await geocodingService.geocodeAddress(address, log);
+            
+            // If address was not found, don't increment usage and return error
+            if (geocodeResult.notFound) {
+              const fullResponse = [
+                `Error: Address not found: ${address}`,
+                'Please check your address format and try again. Make sure to include city and state for U.S. addresses.',
+                '',
+                'Try formats like:',
+                '• 123 Main Street, New York, NY',
+                '• 456 Oak Avenue, Los Angeles, CA 90210',
+                '• 789 Broadway, Chicago, IL',
+                '',
+                ...messages
+              ].join('\n');
+
+              result = {
+                content: [
+                  {
+                    type: "text",
+                    text: fullResponse,
+                  },
+                ],
+                addressNotFound: true
+              };
+              break;
+            }
+            
             coords = {
               latitude: geocodeResult.latitude,
               longitude: geocodeResult.longitude
@@ -118,6 +176,9 @@ export async function POST(request: NextRequest) {
               },
             ],
           };
+          
+          // Only increment usage if we successfully completed the full check
+          shouldIncrementUsage = true;
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'Unknown error';
           const fullResponse = [
@@ -134,6 +195,7 @@ export async function POST(request: NextRequest) {
               },
             ],
           };
+          // Don't increment usage on errors
         }
         break;
 
@@ -141,6 +203,27 @@ export async function POST(request: NextRequest) {
         try {
           const { address } = args;
           const geocodeResult = await geocodingService.geocodeAddress(address, log);
+          
+          // If address was not found, don't increment usage
+          if (geocodeResult.notFound) {
+            const responseText = [
+              `Error geocoding address "${address}": Address not found`,
+              'Please check your address format and try again.',
+              '',
+              ...messages
+            ].join('\n');
+
+            result = {
+              content: [
+                {
+                  type: "text",
+                  text: responseText,
+                },
+              ],
+              addressNotFound: true
+            };
+            break;
+          }
           
           const responseText = [
             `Address: ${address}`,
@@ -158,6 +241,9 @@ export async function POST(request: NextRequest) {
               },
             ],
           };
+          
+          // Only increment usage if geocoding was successful
+          shouldIncrementUsage = true;
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'Unknown error';
           const fullResponse = [
@@ -174,6 +260,7 @@ export async function POST(request: NextRequest) {
               },
             ],
           };
+          // Don't increment usage on errors
         }
         break;
 
@@ -200,6 +287,8 @@ export async function POST(request: NextRequest) {
             "=== Geocoding Cache Status ===",
             `Total cached addresses: ${geocodingStats.totalCached}`,
             `Expired entries: ${geocodingStats.expiredEntries}`,
+            "",
+            ...messages
           ].join('\n');
 
           result = {
@@ -210,13 +299,21 @@ export async function POST(request: NextRequest) {
               },
             ],
           };
+          
+          // Status checks don't count towards usage
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          const fullResponse = [
+            `Error getting status: ${errorMessage}`,
+            '',
+            ...messages
+          ].join('\n');
+
           result = {
             content: [
               {
                 type: "text",
-                text: `Error getting status: ${errorMessage}`,
+                text: fullResponse,
               },
             ],
           };
@@ -229,15 +326,19 @@ export async function POST(request: NextRequest) {
         }, { status: 400 });
     }
 
-    // Return JSON-RPC response
+    // Only increment temporary token usage if operation was successful and should be counted
+    if (shouldIncrementUsage && (accessToken as any).isTemporary) {
+      incrementTempTokenUsage((accessToken as any).token);
+    }
+
     return NextResponse.json({
       jsonrpc: '2.0',
-      id: id,
-      result: result
+      id,
+      result,
     });
 
   } catch (error) {
-    console.error('MCP API Error:', error);
+    console.error('Error in MCP route:', error);
     return NextResponse.json({ 
       error: 'Internal server error' 
     }, { status: 500 });

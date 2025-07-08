@@ -7,7 +7,8 @@ import { Analytics } from '@vercel/analytics/react';
 import { SpeedInsights } from '@vercel/speed-insights/next';
 import { ThemeProvider } from "@/components/theme-provider";
 
-// Force dynamic rendering since we use auth() which accesses headers
+
+// Force dynamic rendering only for routes that need auth
 export const dynamic = 'force-dynamic';
 
 const inter = Inter({ subsets: ["latin"] });
@@ -24,7 +25,7 @@ export const metadata: Metadata = {
     address: false,
     telephone: false,
   },
-  metadataBase: new URL('https://oz-mcp.vercel.app'),
+  metadataBase: new URL(process.env.NEXTAUTH_URL || 'http://localhost:3000'),
   alternates: {
     canonical: '/',
   },
@@ -35,7 +36,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "OZ-MCP – Instant Opportunity Zone Check",
     description: "Check any U.S. address for Qualified Opportunity Zone status in seconds. First 3 lookups free.",
-    url: 'https://oz-mcp.vercel.app',
+    url: process.env.NEXTAUTH_URL || 'http://localhost:3000',
     siteName: 'OZ-MCP',
     locale: 'en_US',
     type: 'website',
