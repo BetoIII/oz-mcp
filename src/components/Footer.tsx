@@ -14,7 +14,7 @@ export function Footer() {
               </div>
               <span className="text-xl font-bold">OZ-MCP</span>
             </div>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-muted-foreground text-center">
               Instant Opportunity Zone verification.
             </p>
           </div>

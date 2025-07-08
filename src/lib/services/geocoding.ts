@@ -11,6 +11,7 @@ export interface GeocodingResult {
   latitude: number
   longitude: number
   displayName: string
+  notFound?: boolean
 }
 
 export class GeocodingService {
@@ -50,11 +51,18 @@ export class GeocodingService {
         return null
       }
 
-      return {
+      const result: GeocodingResult = {
         latitude: cached.latitude,
         longitude: cached.longitude,
         displayName: cached.displayName
       }
+
+      // Include notFound flag if it was a failed lookup
+      if (cached.notFound) {
+        result.notFound = true
+      }
+
+      return result
     } catch (error) {
       // If there's an error accessing cache, continue without it
       return null
@@ -72,6 +80,7 @@ export class GeocodingService {
           latitude: result.latitude,
           longitude: result.longitude,
           displayName: result.displayName,
+          notFound: result.notFound || false,
           expiresAt
         },
         create: {
@@ -79,6 +88,7 @@ export class GeocodingService {
           latitude: result.latitude,
           longitude: result.longitude,
           displayName: result.displayName,
+          notFound: result.notFound || false,
           expiresAt
         }
       })
@@ -117,7 +127,12 @@ export class GeocodingService {
       const data = await response.json()
 
       if (!Array.isArray(data) || data.length === 0) {
-        throw new Error('Address not found')
+        return {
+          latitude: 0,
+          longitude: 0,
+          displayName: address,
+          notFound: true
+        }
       }
 
       const result = data[0]

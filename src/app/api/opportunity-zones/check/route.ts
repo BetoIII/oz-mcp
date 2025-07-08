@@ -1,6 +1,119 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { OpportunityZoneService } from '@/lib/services/opportunity-zones'
 import { geocodingService } from '@/lib/services/geocoding'
+import { cookies } from 'next/headers'
+
+interface SearchTracker {
+  searchCount: number
+  firstSearchDate: string
+  lockedUntil?: string
+}
+
+const FREE_SEARCH_LIMIT = 3
+const LOCKOUT_DURATION_MS = 7 * 24 * 60 * 60 * 1000 // 1 week
+const COOKIE_NAME = 'oz_search_tracker'
+
+// Function to validate search and increment counter only after successful geocoding
+async function validateAndIncrementSearch() {
+  const cookieStore = await cookies()
+  const existingCookie = cookieStore.get(COOKIE_NAME)
+  
+  let tracker: SearchTracker
+  const now = new Date()
+  
+  if (existingCookie) {
+    try {
+      tracker = JSON.parse(existingCookie.value)
+      
+      // Check if user is currently locked out
+      if (tracker.lockedUntil) {
+        const lockoutEnd = new Date(tracker.lockedUntil)
+        if (now < lockoutEnd) {
+          return {
+            allowed: false,
+            reason: 'locked_out',
+            message: 'Free trial searches are locked. Please create an account for unlimited searches.',
+            lockedUntil: tracker.lockedUntil,
+            searchCount: tracker.searchCount
+          }
+        } else {
+          // Lockout period has ended, reset the tracker
+          tracker = {
+            searchCount: 0,
+            firstSearchDate: now.toISOString()
+          }
+        }
+      }
+      
+      // Check if it's been more than a week since first search (rolling window)
+      const firstSearch = new Date(tracker.firstSearchDate)
+      const weekFromFirstSearch = new Date(firstSearch.getTime() + LOCKOUT_DURATION_MS)
+      
+      if (now > weekFromFirstSearch) {
+        // Reset tracker for new week
+        tracker = {
+          searchCount: 0,
+          firstSearchDate: now.toISOString()
+        }
+      }
+      
+    } catch (error) {
+      // Invalid cookie, start fresh
+      tracker = {
+        searchCount: 0,
+        firstSearchDate: now.toISOString()
+      }
+    }
+  } else {
+    // First time user
+    tracker = {
+      searchCount: 0,
+      firstSearchDate: now.toISOString()
+    }
+  }
+  
+  // Check if user has reached the limit
+  if (tracker.searchCount >= FREE_SEARCH_LIMIT) {
+    // Lock them out for a week from now
+    const lockoutEnd = new Date(now.getTime() + LOCKOUT_DURATION_MS)
+    tracker.lockedUntil = lockoutEnd.toISOString()
+    
+    return {
+      allowed: false,
+      reason: 'limit_exceeded',
+      message: 'You\'ve used all 3 free searches. Create an account for unlimited searches.',
+      lockedUntil: tracker.lockedUntil,
+      searchCount: tracker.searchCount,
+      tracker // Return tracker to save the lockout state
+    }
+  }
+  
+  // Allow the search and increment counter
+  tracker.searchCount += 1
+  
+  return {
+    allowed: true,
+    searchCount: tracker.searchCount,
+    remainingSearches: FREE_SEARCH_LIMIT - tracker.searchCount,
+    message: tracker.searchCount === FREE_SEARCH_LIMIT 
+      ? 'This is your last free search. Create an account for unlimited searches.'
+      : `${FREE_SEARCH_LIMIT - tracker.searchCount} free searches remaining.`,
+    tracker // Return updated tracker to save
+  }
+}
+
+// Function to save tracker to cookie
+async function saveTracker(tracker: SearchTracker) {
+  const response = new NextResponse()
+  response.cookies.set(COOKIE_NAME, JSON.stringify(tracker), {
+    maxAge: LOCKOUT_DURATION_MS / 1000,
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path: '/'
+  })
+  return response
+}
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams
@@ -22,12 +135,81 @@ export async function GET(request: NextRequest) {
   let geocodedAddress: string;
 
   try {
-    // If address is provided, geocode it first
+    // If address is provided, validate search and then geocode
     if (address) {
+      // For address searches, we need to validate first but only increment after successful geocoding
+      const cookieStore = await cookies()
+      const existingCookie = cookieStore.get(COOKIE_NAME)
+      
+      // Check current search status without incrementing
+      let currentSearchCount = 0
+      let isCurrentlyLocked = false
+      
+      if (existingCookie) {
+        try {
+          const tracker: SearchTracker = JSON.parse(existingCookie.value)
+          currentSearchCount = tracker.searchCount
+          
+          // Check if locked out
+          if (tracker.lockedUntil) {
+            const lockoutEnd = new Date(tracker.lockedUntil)
+            const now = new Date()
+            if (now < lockoutEnd) {
+              isCurrentlyLocked = true
+            }
+          }
+          
+          // Check if week has passed
+          const firstSearch = new Date(tracker.firstSearchDate)
+          const weekFromFirstSearch = new Date(firstSearch.getTime() + LOCKOUT_DURATION_MS)
+          const now = new Date()
+          
+          if (now > weekFromFirstSearch) {
+            currentSearchCount = 0
+            isCurrentlyLocked = false
+          }
+        } catch (error) {
+          // Invalid cookie
+          currentSearchCount = 0
+          isCurrentlyLocked = false
+        }
+      }
+      
+      // Check if user is locked out or at limit
+      if (isCurrentlyLocked || currentSearchCount >= FREE_SEARCH_LIMIT) {
+        return NextResponse.json(
+          { 
+            error: 'Search limit reached',
+            message: 'You\'ve used all 3 free searches. Create an account for unlimited searches.',
+            searchCount: currentSearchCount
+          },
+          { status: 429 }
+        )
+      }
+      
+      // Attempt geocoding
       const geocodeResult = await geocodingService.geocodeAddress(address);
+      
+      // Handle address not found gracefully
+      if (geocodeResult.notFound) {
+        return NextResponse.json({
+          addressNotFound: true,
+          address: address,
+          message: 'Address not found',
+          suggestion: 'Please check your address format and try again. Make sure to include city and state for U.S. addresses.',
+          examples: [
+            '123 Main Street, New York, NY',
+            '456 Oak Avenue, Los Angeles, CA 90210',
+            '789 Broadway, Chicago, IL'
+          ]
+        }, { status: 200 })
+      }
+      
       latitude = geocodeResult.latitude;
       longitude = geocodeResult.longitude;
       geocodedAddress = geocodeResult.displayName || address;
+      
+      // Don't increment search count yet - wait until after successful OZ check
     } else {
       latitude = parseFloat(lat!);
       longitude = parseFloat(lon!);
@@ -148,7 +330,23 @@ export async function GET(request: NextRequest) {
       performance
     }
 
-    return NextResponse.json(response, { status: 200 })
+    const finalResponse = NextResponse.json(response, { status: 200 })
+    
+    // For address-based searches, increment search count only after successful completion
+    if (address) {
+      const validation = await validateAndIncrementSearch()
+      if (validation.tracker) {
+        finalResponse.cookies.set(COOKIE_NAME, JSON.stringify(validation.tracker), {
+          maxAge: LOCKOUT_DURATION_MS / 1000,
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'lax',
+          path: '/'
+        })
+      }
+    }
+    
+    return finalResponse
   } catch (error) {
     const queryTime = Date.now() - (Date.now() - 100) // Approximate timing for error case
     

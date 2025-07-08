@@ -21,6 +21,7 @@ import {
   Users,
   Bot,
   Play,
+  RefreshCw,
 } from "lucide-react"
 import Link from "next/link"
 import { motion } from "framer-motion"
@@ -39,6 +40,8 @@ export default function HomePage() {
     method?: string;
     coordinates?: { lat: number; lon: number };
     error?: string;
+    suggestion?: string;
+    examples?: string[];
   } | null>(null)
   const [isSearching, setIsSearching] = useState(false)
   const [lockoutInfo, setLockoutInfo] = useState<{
@@ -46,6 +49,15 @@ export default function HomePage() {
     lockedUntil?: string;
     message?: string;
   }>({ isLocked: false })
+
+  // Check if we're in development mode (client-side check)
+  const [isDevelopment, setIsDevelopment] = useState(false)
+  
+  useEffect(() => {
+    // Check if we're running on localhost or dev domain
+    const hostname = window.location.hostname
+    setIsDevelopment(hostname === 'localhost' || hostname === '127.0.0.1' || hostname.startsWith('192.168.'))
+  }, [])
 
   // Check search status on page load
   useEffect(() => {
@@ -67,6 +79,29 @@ export default function HomePage() {
     }
     checkSearchStatus()
   }, [])
+
+  // Reset rate limit function (development only)
+  const resetRateLimit = async () => {
+    try {
+      const response = await fetch('/api/opportunity-zones/reset-limit', {
+        method: 'POST',
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        setSearchCount(0)
+        setLockoutInfo({
+          isLocked: false,
+          message: undefined
+        })
+        console.log('Rate limit reset successfully')
+      } else {
+        console.error('Failed to reset rate limit')
+      }
+    } catch (error) {
+      console.error('Error resetting rate limit:', error)
+    }
+  }
 
   // Function to parse MCP-style response text
   const parseOZResponse = (text: string) => {
@@ -117,36 +152,43 @@ export default function HomePage() {
     setLockoutInfo(prev => ({ ...prev, message: undefined }))
     
     try {
-      // First, validate the search attempt
-      const validationResponse = await fetch('/api/opportunity-zones/validate-search', {
-        method: 'POST'
-      })
-      
-      const validationData = await validationResponse.json()
-      
-      if (!validationData.allowed) {
-        setLockoutInfo({
-          isLocked: validationData.reason === 'locked_out' || validationData.reason === 'limit_exceeded',
-          lockedUntil: validationData.lockedUntil,
-          message: validationData.message
-        })
-        setSearchCount(validationData.searchCount || searchCount)
-        setIsSearching(false)
-        return
-      }
-
-      // Update search count from validation
-      setSearchCount(validationData.searchCount)
-
-      // Proceed with the actual search
+      // Proceed directly with the search (validation is now handled in the check endpoint)
       // Use the MCP-style check with address parameter
       const ozResponse = await fetch(`/api/opportunity-zones/check?address=${encodeURIComponent(searchValue)}&format=mcp`)
       
+      // Handle search limit exceeded
+      if (ozResponse.status === 429) {
+        const limitData = await ozResponse.json()
+        setLockoutInfo({
+          isLocked: true,
+          message: limitData.message || 'You\'ve used all 3 free searches. Create an account for unlimited searches.'
+        })
+        setSearchCount(limitData.searchCount || 3)
+        setIsSearching(false)
+        return
+      }
+      
       if (!ozResponse.ok) {
-        throw new Error(`Opportunity zone check failed: ${ozResponse.status}`)
+        const errorData = await ozResponse.json()
+        throw new Error(errorData.details || `Opportunity zone check failed: ${ozResponse.status}`)
       }
 
       const ozData = await ozResponse.json()
+      
+      // Handle address not found gracefully
+      if (ozData.addressNotFound) {
+        setSearchResult({
+          address: searchValue,
+          isOpportunityZone: false,
+          tractId: "Address Not Found",
+          confidence: "N/A",
+          error: ozData.message,
+          suggestion: ozData.suggestion,
+          examples: ozData.examples
+        })
+        setIsSearching(false)
+        return
+      }
       
       // Check if response has MCP format
       if (ozData.result?.content?.[0]?.text) {
@@ -154,6 +196,22 @@ export default function HomePage() {
         const parsed = parseOZResponse(ozData.result.content[0].text);
         if (parsed) {
           setSearchResult(parsed);
+          
+          // Update search count after successful search
+          try {
+            const statusResponse = await fetch('/api/opportunity-zones/validate-search')
+            if (statusResponse.ok) {
+              const statusData = await statusResponse.json()
+              setSearchCount(statusData.searchCount)
+              setLockoutInfo({
+                isLocked: statusData.isLocked,
+                lockedUntil: statusData.lockedUntil
+              })
+            }
+          } catch (statusError) {
+            console.error('Failed to update search status:', statusError)
+          }
+          
           setIsSearching(false);
           return;
         }
@@ -192,15 +250,43 @@ export default function HomePage() {
         coordinates: { lat: geocodeData.latitude, lon: geocodeData.longitude }
       })
       
+      // Update search count after successful search
+      try {
+        const statusResponse = await fetch('/api/opportunity-zones/validate-search')
+        if (statusResponse.ok) {
+          const statusData = await statusResponse.json()
+          setSearchCount(statusData.searchCount)
+          setLockoutInfo({
+            isLocked: statusData.isLocked,
+            lockedUntil: statusData.lockedUntil
+          })
+        }
+      } catch (statusError) {
+        console.error('Failed to update search status:', statusError)
+      }
+      
     } catch (error) {
       console.error('Search error:', error)
+      
+      const errorMessage = error instanceof Error ? error.message : 'Search failed. Please try again.'
+      const isAddressNotFound = errorMessage.includes('Address not found')
       
       setSearchResult({
         address: searchValue,
         isOpportunityZone: false,
-        tractId: "Error",
-        confidence: "Error",
-        error: error instanceof Error ? error.message : 'Search failed. Please try again.'
+        tractId: isAddressNotFound ? "Address Not Found" : "Error",
+        confidence: isAddressNotFound ? "N/A" : "Error",
+        error: isAddressNotFound 
+          ? 'Address not found' 
+          : errorMessage,
+        ...(isAddressNotFound && {
+          suggestion: 'Please check your address format and try again. Make sure to include city and state for U.S. addresses.',
+          examples: [
+            '123 Main Street, New York, NY',
+            '456 Oak Avenue, Los Angeles, CA 90210',
+            '789 Broadway, Chicago, IL'
+          ]
+        })
       })
     }
     
@@ -243,7 +329,7 @@ export default function HomePage() {
         >
           <Card className="p-6 shadow-lg">
             <div className="mb-4 flex items-center justify-between">
-              <span className="text-sm font-medium">Free Trial</span>
+              <span className="text-lg font-medium">Try it for free!</span>  
               <div className="flex items-center space-x-2">
                 <span className="text-sm text-muted-foreground">
                   {lockoutInfo.isLocked 
@@ -252,6 +338,17 @@ export default function HomePage() {
                   }
                 </span>
                 <Progress value={progressPercentage} className="w-20" />
+                {isDevelopment && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={resetRateLimit}
+                    className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
+                    title="Reset rate limit (Dev only)"
+                  >
+                    <RefreshCw className="h-3 w-3" />
+                  </Button>
+                )}
               </div>
             </div>
 
@@ -284,18 +381,30 @@ export default function HomePage() {
               <motion.div
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="mt-4 rounded-lg border bg-muted/50 p-4"
+                className={`mt-4 rounded-lg border p-4 ${
+                  searchResult.tractId === "Address Not Found" 
+                    ? "border-amber-200 bg-amber-50/50" 
+                    : searchResult.error 
+                      ? "border-red-200 bg-red-50/50"
+                      : "border-green-200 bg-muted/50"
+                }`}
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
                     {searchResult.error ? (
-                      <XCircle className="h-5 w-5 text-red-600" />
+                      searchResult.tractId === "Address Not Found" ? (
+                        <MapPin className="h-5 w-5 text-amber-600" />
+                      ) : (
+                        <XCircle className="h-5 w-5 text-red-600" />
+                      )
                     ) : (
                       <CheckCircle className="h-5 w-5 text-green-600" />
                     )}
                     <span className="font-medium">
                       {searchResult.error 
-                        ? searchResult.error
+                        ? searchResult.tractId === "Address Not Found" 
+                          ? "⚠️ Address Not Found"
+                          : searchResult.error
                         : searchResult.isOpportunityZone 
                           ? "✅ Opportunity Zone" 
                           : "❌ Not an Opportunity Zone"
@@ -306,6 +415,25 @@ export default function HomePage() {
                     <Badge variant="secondary">Zone: {searchResult.tractId}</Badge>
                   )}
                 </div>
+                
+                {searchResult.tractId === "Address Not Found" && searchResult.suggestion && (
+                  <div className="mt-3 space-y-2">
+                    <p className="text-sm text-amber-700 bg-amber-50 p-2 rounded">
+                      {searchResult.suggestion}
+                    </p>
+                    {searchResult.examples && (
+                      <div className="text-sm">
+                        <p className="font-medium text-muted-foreground mb-1">Try formats like:</p>
+                        <ul className="list-disc list-inside text-muted-foreground space-y-1">
+                          {searchResult.examples.map((example, index) => (
+                            <li key={index} className="text-xs">{example}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                )}
+                
                 {!searchResult.error && (
                   <p className="mt-2 text-sm text-muted-foreground">
                     Address: {searchResult.address}
