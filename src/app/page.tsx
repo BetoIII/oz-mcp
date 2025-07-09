@@ -352,30 +352,33 @@ export default function HomePage() {
               </div>
             </div>
 
-            <div className="flex space-x-2">
+            <form onSubmit={(e) => {
+              e.preventDefault()
+              if (!lockoutInfo.isLocked && searchValue.trim() && !isSearching) {
+                handleSearch()
+              }
+            }} className="flex space-x-2">
               <Input
+                id="address-search"
+                name="address"
                 placeholder={lockoutInfo.isLocked 
                   ? "Locked out - Create account for unlimited searches" 
                   : "Enter any U.S. address (e.g., 123 Main St, New York, NY)"
                 }
                 value={searchValue}
                 onChange={(e) => setSearchValue(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !lockoutInfo.isLocked && searchValue.trim() && !isSearching) {
-                    handleSearch()
-                  }
-                }}
                 className="flex-1"
                 disabled={lockoutInfo.isLocked}
+                required
               />
               <Button
-                onClick={handleSearch}
+                type="submit"
                 disabled={!searchValue.trim() || lockoutInfo.isLocked || isSearching}
                 className="px-6"
               >
                 {isSearching ? "Checking..." : "Search QOZs"}
               </Button>
-            </div>
+            </form>
 
             {searchResult && (
               <motion.div
@@ -451,9 +454,14 @@ export default function HomePage() {
                 className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-4 text-center"
               >
                 <p className="mb-3 font-medium">You've used all 3 free searches!</p>
-                <Button className="w-full" asChild>
-                  <Link href="/dashboard">Create Free Account for Unlimited Searches</Link>
-                </Button>
+                <div className="space-y-2">
+                  <Link href="/playground">
+                    <Button className="w-full">Try API Playground</Button>
+                  </Link>
+                  <Link href="/dashboard">
+                    <Button className="w-full" variant="outline">Create Free Account</Button>
+                  </Link>
+                </div>
               </motion.div>
             )}
 
@@ -664,9 +672,9 @@ export default function HomePage() {
                     <span>API documentation</span>
                   </li>
                 </ul>
-                <Button className="w-full" variant="outline" asChild>
-                  <Link href="/dashboard">Get Started Free</Link>
-                </Button>
+                <Link href="/playground">
+                  <Button className="w-full" variant="outline">Get Started Free</Button>
+                </Link>
               </CardContent>
             </Card>
 
@@ -875,12 +883,12 @@ export default function HomePage() {
             Join investors and professionals using OZ-MCP to identify tax-advantaged opportunities.
           </p>
           <div className="flex flex-col items-center justify-center space-y-4 sm:flex-row sm:space-x-4 sm:space-y-0">
-            <Button size="lg" className="bg-white text-blue-600 hover:bg-gray-100" asChild>
-              <Link href="/playground">
+            <Link href="/playground">
+              <Button size="lg" className="bg-white text-blue-600 hover:bg-gray-100">
                 Get Free API Key
                 <ArrowRight className="ml-2 h-4 w-4" />
-              </Link>
-            </Button>
+              </Button>
+            </Link>
             <Button
               size="lg"
               variant="outline"

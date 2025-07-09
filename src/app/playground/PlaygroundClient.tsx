@@ -38,6 +38,7 @@ interface ApiResponse {
       type: string;
       text: string;
     }>;
+    addressNotFound?: boolean;
   };
   error?: string;
 }
@@ -65,9 +66,9 @@ export default function PlaygroundClient() {
   const [response, setResponse] = useState<ApiResponse | null>(null);
   const [error, setError] = useState<string>('');
 
-  // OAuth-related state
-  const [oauthClient, setOauthClient] = useState<{ clientId: string; clientSecret: string } | null>(null);
-  const [showOAuthSetup, setShowOAuthSetup] = useState<boolean>(false);
+  // Temporary API key state
+  const [isCreatingTempKey, setIsCreatingTempKey] = useState<boolean>(false);
+  const [tempKeyInfo, setTempKeyInfo] = useState<{ usageCount?: number; isTemporary?: boolean } | null>(null);
 
   // Service status monitoring
   const [serviceStatus, setServiceStatus] = useState<{
@@ -83,62 +84,42 @@ export default function PlaygroundClient() {
     const storedToken = localStorage.getItem('oauth_access_token');
     if (storedToken) {
       setAccessToken(storedToken);
+      // Check if it's a temporary token
+      if (storedToken.startsWith('temp_')) {
+        setTempKeyInfo({ isTemporary: true, usageCount: 0 });
+      }
     }
   }, []);
 
-  // Function to initiate OAuth flow
-  const initiateOAuth = () => {
-    if (!oauthClient) {
-      setShowOAuthSetup(true);
-      return;
+  // Function to create temporary API key
+  const createTemporaryApiKey = async () => {
+    setIsCreatingTempKey(true);
+    setError('');
+
+    try {
+      const response = await fetch('/api/temporary-key', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        setAccessToken(result.token);
+        localStorage.setItem('oauth_access_token', result.token);
+        setTempKeyInfo({ usageCount: 0, isTemporary: true });
+        setError('');
+      } else {
+        setError(result.message || 'Failed to create temporary API key');
+      }
+    } catch (error) {
+      setError('Network error creating temporary API key');
+      console.error('Error creating temporary API key:', error);
+    } finally {
+      setIsCreatingTempKey(false);
     }
-
-    // Generate PKCE parameters
-    const generateCodeVerifier = () => {
-      const array = new Uint8Array(32);
-      crypto.getRandomValues(array);
-      return Array.from(array, byte => ('0' + byte.toString(16)).slice(-2)).join('');
-    };
-
-    const generateCodeChallenge = async (verifier: string) => {
-      const encoder = new TextEncoder();
-      const data = encoder.encode(verifier);
-      const digest = await crypto.subtle.digest('SHA-256', data);
-      return btoa(String.fromCharCode(...new Uint8Array(digest)))
-        .replace(/\+/g, '-')
-        .replace(/\//g, '_')
-        .replace(/=+$/, '');
-    };
-
-    const startOAuthFlow = async () => {
-      const codeVerifier = generateCodeVerifier();
-      const codeChallenge = await generateCodeChallenge(codeVerifier);
-      const state = crypto.getRandomValues(new Uint32Array(1))[0].toString();
-      
-      const redirectUri = `${window.location.origin}/oauth/callback`;
-      
-      // Store OAuth parameters
-      localStorage.setItem('oauth_client_id', oauthClient.clientId);
-      localStorage.setItem('oauth_client_secret', oauthClient.clientSecret);
-      localStorage.setItem('oauth_redirect_uri', redirectUri);
-      localStorage.setItem('oauth_code_verifier', codeVerifier);
-      localStorage.setItem('oauth_state', state);
-      
-      // Build authorization URL
-      const authUrl = new URL('/oauth/authorize', window.location.origin);
-      authUrl.searchParams.set('client_id', oauthClient.clientId);
-      authUrl.searchParams.set('redirect_uri', redirectUri);
-      authUrl.searchParams.set('response_type', 'code');
-      authUrl.searchParams.set('scope', 'api:read');
-      authUrl.searchParams.set('state', state);
-      authUrl.searchParams.set('code_challenge', codeChallenge);
-      authUrl.searchParams.set('code_challenge_method', 'S256');
-      
-      // Redirect to authorization page
-      window.location.href = authUrl.toString();
-    };
-
-    startOAuthFlow();
   };
 
   // Function to check service status
@@ -247,82 +228,7 @@ export default function PlaygroundClient() {
     }
   }, [accessToken, autoRefreshStatus]);
 
-  // Handle URL parameters for OAuth callback
-  useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const code = urlParams.get('code');
-    const state = urlParams.get('state');
-    const error = urlParams.get('error');
 
-    if (error) {
-      setError(`OAuth error: ${error}`);
-      return;
-    }
-
-    if (code && state) {
-      const storedState = localStorage.getItem('oauth_state');
-      if (state !== storedState) {
-        setError('Invalid state parameter');
-        return;
-      }
-
-      // Exchange code for token
-      exchangeCodeForToken(code);
-    }
-  }, []);
-
-  const exchangeCodeForToken = async (code: string) => {
-    const clientId = localStorage.getItem('oauth_client_id');
-    const clientSecret = localStorage.getItem('oauth_client_secret');
-    const redirectUri = localStorage.getItem('oauth_redirect_uri');
-    const codeVerifier = localStorage.getItem('oauth_code_verifier');
-
-    if (!clientId || !clientSecret || !redirectUri || !codeVerifier) {
-      setError('Missing OAuth parameters');
-      return;
-    }
-
-    try {
-      const response = await fetch('/api/oauth/token', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: new URLSearchParams({
-          grant_type: 'authorization_code',
-          code,
-          redirect_uri: redirectUri,
-          client_id: clientId,
-          client_secret: clientSecret,
-          code_verifier: codeVerifier,
-        }),
-      });
-
-      if (response.ok) {
-        const tokenData = await response.json();
-        setAccessToken(tokenData.access_token);
-        localStorage.setItem('oauth_access_token', tokenData.access_token);
-        
-        // Clean up OAuth parameters
-        localStorage.removeItem('oauth_client_id');
-        localStorage.removeItem('oauth_client_secret');
-        localStorage.removeItem('oauth_redirect_uri');
-        localStorage.removeItem('oauth_code_verifier');
-        localStorage.removeItem('oauth_state');
-        
-        // Clear URL parameters
-        window.history.replaceState({}, document.title, window.location.pathname);
-        
-        // Automatically check service status after getting token
-        setTimeout(checkServiceStatus, 1000);
-      } else {
-        const errorData = await response.text();
-        setError(`Token exchange failed: ${errorData}`);
-      }
-    } catch (error) {
-      setError(`Token exchange error: ${error}`);
-    }
-  };
 
   const handleToolChange = (tool: string) => {
     setSelectedTool(tool);
@@ -424,7 +330,32 @@ export default function PlaygroundClient() {
       setResponse(result);
 
       if (!response.ok) {
-        setError(`HTTP ${response.status}: ${result.error?.message || 'Unknown error'}`);
+        // Handle temporary key limit exceeded
+        if (response.status === 429 && result.code === 'TEMP_KEY_LIMIT_EXCEEDED') {
+          setTempKeyInfo(prev => prev ? { ...prev, usageCount: 3 } : null);
+          setError('Temporary API key limit exceeded. Create a new temporary key or signup for unlimited access.');
+        } else {
+          setError(`HTTP ${response.status}: ${result.error?.message || 'Unknown error'}`);
+        }
+      } else {
+        // Check if the response indicates an address not found error
+        const isAddressNotFound = result.result?.addressNotFound || 
+          (result.result?.content?.[0]?.text?.includes('Address not found'));
+        
+        // Only increment usage count if:
+        // 1. We have a temporary key AND
+        // 2. The address was found (successful operation)
+        if (tempKeyInfo?.isTemporary && accessToken.startsWith('temp_') && !isAddressNotFound) {
+          setTempKeyInfo(prev => prev ? { 
+            ...prev, 
+            usageCount: (prev.usageCount || 0) + 1 
+          } : null);
+        }
+
+        // Set specific error for address not found
+        if (isAddressNotFound) {
+          setError('Address not found. Please check your address format and try again. Make sure to include city and state for U.S. addresses.');
+        }
       }
     } catch (error) {
       setError(`Request failed: ${error}`);
@@ -531,69 +462,71 @@ export default function PlaygroundClient() {
               <CardContent className="space-y-4">
                 {!accessToken ? (
                   <div className="space-y-4">
-                    {!showOAuthSetup ? (
-                      <div className="text-center space-y-4">
-                        <p className="text-sm text-muted-foreground">
-                          You need an access token to use the playground
-                        </p>
-                        <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                          <Button onClick={() => setShowOAuthSetup(true)}>
-                            <Key className="h-4 w-4 mr-2" />
-                            Configure OAuth Client
+                    <div className="text-center space-y-4">
+                      <p className="text-sm text-muted-foreground">
+                        Get started with the API playground
+                      </p>
+                      <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                        <Button 
+                          onClick={createTemporaryApiKey}
+                          disabled={isCreatingTempKey}
+                        >
+                          {isCreatingTempKey ? (
+                            <>
+                              <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                              Creating...
+                            </>
+                          ) : (
+                            <>
+                              <Key className="h-4 w-4 mr-2" />
+                              Create Temporary API Key
+                            </>
+                          )}
+                        </Button>
+                        <Link href="/dashboard">
+                          <Button variant="outline">
+                            <ExternalLink className="h-4 w-4 mr-2" />
+                            Signup for Free API Key
                           </Button>
-                          <Link href="/dashboard">
-                            <Button variant="outline">
-                              <ExternalLink className="h-4 w-4 mr-2" />
-                              Create Client in Dashboard
-                            </Button>
-                          </Link>
-                        </div>
+                        </Link>
                       </div>
-                    ) : (
-                      <div className="space-y-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="clientId">Client ID</Label>
-                          <Input
-                            id="clientId"
-                            placeholder="Enter your OAuth client ID"
-                            value={oauthClient?.clientId || ''}
-                            onChange={(e) => setOauthClient(prev => ({ ...prev, clientId: e.target.value, clientSecret: prev?.clientSecret || '' }))}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="clientSecret">Client Secret</Label>
-                          <Input
-                            id="clientSecret"
-                            type="password"
-                            placeholder="Enter your OAuth client secret"
-                            value={oauthClient?.clientSecret || ''}
-                            onChange={(e) => setOauthClient(prev => ({ ...prev, clientSecret: e.target.value, clientId: prev?.clientId || '' }))}
-                          />
-                        </div>
-                        <div className="flex gap-2">
-                          <Button 
-                            onClick={initiateOAuth}
-                            disabled={!oauthClient?.clientId || !oauthClient?.clientSecret}
-                          >
-                            Start OAuth Flow
-                          </Button>
-                          <Button variant="outline" onClick={() => setShowOAuthSetup(false)}>
-                            Cancel
-                          </Button>
-                        </div>
+                      <div className="text-xs text-muted-foreground">
+                        Temporary keys allow 3 requests and expire in 24 hours
                       </div>
-                    )}
+                    </div>
                   </div>
                 ) : (
                   <div className="space-y-4">
                     <div className="flex items-center space-x-2">
                       <CheckCircle className="h-5 w-5 text-green-600" />
-                      <span className="text-sm font-medium">Authenticated</span>
+                      <span className="text-sm font-medium">
+                        {tempKeyInfo?.isTemporary ? 'Temporary Key Active' : 'Authenticated'}
+                      </span>
                     </div>
+                    
+                    {tempKeyInfo?.isTemporary && (
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                        <div className="flex items-center space-x-2 mb-2">
+                          <Clock className="h-4 w-4 text-blue-600" />
+                          <span className="text-sm font-medium text-blue-800">Temporary API Key</span>
+                        </div>
+                        <div className="text-xs text-blue-700">
+                          Usage: {tempKeyInfo.usageCount || 0}/3 requests • Expires in 24 hours
+                        </div>
+                        {(tempKeyInfo.usageCount || 0) >= 2 && (
+                          <div className="text-xs text-orange-600 mt-1">
+                            {(tempKeyInfo.usageCount || 0) === 2 ? 'Last request remaining!' : 'Consider signing up for unlimited access'}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    
                     <div className="space-y-2">
                       <Label>Access Token (masked)</Label>
                       <div className="flex space-x-2">
                         <Input 
+                          id="access-token-display"
+                          name="accessToken"
                           value={accessToken.substring(0, 8) + '...' + accessToken.substring(accessToken.length - 8)}
                           readOnly
                         />
@@ -603,6 +536,7 @@ export default function PlaygroundClient() {
                           onClick={() => {
                             setAccessToken('');
                             localStorage.removeItem('oauth_access_token');
+                            setTempKeyInfo(null);
                           }}
                         >
                           Clear
@@ -745,46 +679,105 @@ export default function PlaygroundClient() {
                     </Badge>
 
                     {/* Parsed OZ Result Display */}
-                    {selectedTool === 'check_opportunity_zone' && response.result?.content?.[0]?.text && (
+                    {(selectedTool === 'check_opportunity_zone' || selectedTool === 'geocode_address') && response.result?.content?.[0]?.text && (
                       <div className="mb-4">
                         {(() => {
-                          const parsed = parseOZResponse(response.result.content[0].text);
-                          if (parsed) {
+                          const responseText = response.result.content[0].text;
+                          const isAddressNotFound = response.result?.addressNotFound || 
+                            responseText.includes('Address not found') || 
+                            responseText.includes('Error: Address not found');
+
+                          // Handle address not found case
+                          if (isAddressNotFound) {
                             return (
-                              <div className="rounded-lg border bg-muted/50 p-4 space-y-2">
-                                <div className="flex items-center justify-between">
-                                  <div className="flex items-center space-x-2">
-                                    {parsed.isOpportunityZone ? (
-                                      <CheckCircle className="h-5 w-5 text-green-600" />
-                                    ) : (
-                                      <XCircle className="h-5 w-5 text-red-600" />
-                                    )}
-                                    <span className="font-medium">
-                                      {parsed.isOpportunityZone ? "✅ Opportunity Zone" : "❌ Not an Opportunity Zone"}
-                                    </span>
-                                  </div>
-                                  {parsed.zoneId && (
-                                    <Badge variant="secondary">Zone: {parsed.zoneId}</Badge>
-                                  )}
+                              <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-4 space-y-3">
+                                <div className="flex items-center space-x-2">
+                                  <AlertTriangle className="h-5 w-5 text-amber-600" />
+                                  <span className="font-medium text-amber-800">⚠️ Address Not Found</span>
                                 </div>
-                                <div className="text-sm text-muted-foreground space-y-1">
-                                  <p><strong>Address:</strong> {parsed.address}</p>
-                                  {parsed.coordinates && (
-                                    <p><strong>Coordinates:</strong> {parsed.coordinates.lat}, {parsed.coordinates.lon}</p>
-                                  )}
-                                  {parsed.method && (
-                                    <p><strong>Method:</strong> {parsed.method}</p>
-                                  )}
-                                  {parsed.featureCount && (
-                                    <p><strong>Features:</strong> {parsed.featureCount.toLocaleString()}</p>
-                                  )}
-                                  {parsed.dataVersion && (
-                                    <p><strong>Data Version:</strong> {new Date(parsed.dataVersion).toLocaleString()}</p>
-                                  )}
+                                <div className="text-sm text-amber-700 space-y-2">
+                                  <p className="bg-amber-50 p-2 rounded">
+                                    Please check your address format and try again. Make sure to include city and state for U.S. addresses.
+                                  </p>
+                                  <div>
+                                    <p className="font-medium text-muted-foreground mb-1">Try formats like:</p>
+                                    <ul className="list-disc list-inside text-muted-foreground space-y-1">
+                                      <li className="text-xs">123 Main Street, New York, NY</li>
+                                      <li className="text-xs">456 Oak Avenue, Los Angeles, CA 90210</li>
+                                      <li className="text-xs">789 Broadway, Chicago, IL</li>
+                                    </ul>
+                                  </div>
                                 </div>
                               </div>
                             );
                           }
+
+                          // Handle successful opportunity zone check
+                          if (selectedTool === 'check_opportunity_zone') {
+                            const parsed = parseOZResponse(responseText);
+                            if (parsed) {
+                              return (
+                                <div className="rounded-lg border bg-muted/50 p-4 space-y-2">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center space-x-2">
+                                      {parsed.isOpportunityZone ? (
+                                        <CheckCircle className="h-5 w-5 text-green-600" />
+                                      ) : (
+                                        <XCircle className="h-5 w-5 text-red-600" />
+                                      )}
+                                      <span className="font-medium">
+                                        {parsed.isOpportunityZone ? "✅ Opportunity Zone" : "❌ Not an Opportunity Zone"}
+                                      </span>
+                                    </div>
+                                    {parsed.zoneId && (
+                                      <Badge variant="secondary">Zone: {parsed.zoneId}</Badge>
+                                    )}
+                                  </div>
+                                  <div className="text-sm text-muted-foreground space-y-1">
+                                    <p><strong>Address:</strong> {parsed.address}</p>
+                                    {parsed.coordinates && (
+                                      <p><strong>Coordinates:</strong> {parsed.coordinates.lat}, {parsed.coordinates.lon}</p>
+                                    )}
+                                    {parsed.method && (
+                                      <p><strong>Method:</strong> {parsed.method}</p>
+                                    )}
+                                    {parsed.featureCount && (
+                                      <p><strong>Features:</strong> {parsed.featureCount.toLocaleString()}</p>
+                                    )}
+                                    {parsed.dataVersion && (
+                                      <p><strong>Data Version:</strong> {new Date(parsed.dataVersion).toLocaleString()}</p>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            }
+                          }
+
+                          // Handle successful geocoding
+                          if (selectedTool === 'geocode_address') {
+                            const addressMatch = responseText.match(/Address: ([^\n]+)/);
+                            const coordMatch = responseText.match(/Coordinates: ([^,]+), ([^\n]+)/);
+                            const displayMatch = responseText.match(/Display name: ([^\n]+)/);
+                            
+                            if (addressMatch && coordMatch) {
+                              return (
+                                <div className="rounded-lg border bg-muted/50 p-4 space-y-2">
+                                  <div className="flex items-center space-x-2">
+                                    <CheckCircle className="h-5 w-5 text-green-600" />
+                                    <span className="font-medium">✅ Address Geocoded</span>
+                                  </div>
+                                  <div className="text-sm text-muted-foreground space-y-1">
+                                    <p><strong>Address:</strong> {addressMatch[1]}</p>
+                                    <p><strong>Coordinates:</strong> {coordMatch[1]}, {coordMatch[2]}</p>
+                                    {displayMatch && (
+                                      <p><strong>Display Name:</strong> {displayMatch[1]}</p>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            }
+                          }
+
                           return null;
                         })()}
                       </div>
