@@ -25,6 +25,7 @@ export function Navbar({ variant = 'default', title, icon }: NavbarProps) {
   const { data: session, status } = useSession()
   const router = useRouter()
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const [isRecognizedUser, setIsRecognizedUser] = useState(false)
 
   const getTitle = () => {
     if (title) return title
@@ -55,9 +56,25 @@ export function Navbar({ variant = 'default', title, icon }: NavbarProps) {
     signIn('google', { callbackUrl: '/dashboard' })
   }
 
+  // Check for previous login cookies on component mount
+  useEffect(() => {
+    const checkForPreviousLogin = () => {
+      // Check for NextAuth session cookies that indicate previous login
+      const cookies = document.cookie
+      const hasSessionCookie = cookies.includes('next-auth.session-token') || 
+                              cookies.includes('__Secure-next-auth.session-token') ||
+                              cookies.includes('next-auth.csrf-token')
+      
+      setIsRecognizedUser(hasSessionCookie)
+    }
+
+    checkForPreviousLogin()
+  }, [])
+
   const navLinks = [
-    { href: '/docs/oauth-flow', label: 'Docs', showAlways: true },
+    { href: '/docs', label: 'Docs', showAlways: true },
     { href: '/playground', label: 'Playground', showAlways: true },
+    { href: 'https://x.com/BetoIII', label: 'Twitter', showAlways: true, external: true },
     { href: '/dashboard', label: 'Dashboard', requiresAuth: true },
   ]
 
@@ -87,13 +104,25 @@ export function Navbar({ variant = 'default', title, icon }: NavbarProps) {
         {/* Desktop Navigation */}
         <nav className="hidden md:flex items-center space-x-6">
           {filteredNavLinks.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              className="text-sm font-medium hover:text-blue-600 transition-colors"
-            >
-              {link.label}
-            </Link>
+            'external' in link && link.external ? (
+              <a
+                key={link.href}
+                href={link.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm font-medium hover:text-blue-600 transition-colors"
+              >
+                {link.label}
+              </a>
+            ) : (
+              <Link
+                key={link.href}
+                href={link.href}
+                className="text-sm font-medium hover:text-blue-600 transition-colors"
+              >
+                {link.label}
+              </Link>
+            )
           ))}
 
           {/* Authentication Buttons */}
@@ -121,22 +150,13 @@ export function Navbar({ variant = 'default', title, icon }: NavbarProps) {
                 </Button>
               </div>
             ) : (
-              <div className="flex items-center space-x-3">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleSignIn}
-                >
-                  Sign In
-                </Button>
-                <Button
-                  size="sm"
-                  variant="default"
-                  onClick={() => router.push('/playground')}
-                >
-                  Try for Free
-                </Button>
-              </div>
+              <Button
+                variant="default"
+                size="sm"
+                onClick={handleSignIn}
+              >
+                {isRecognizedUser ? 'Sign In' : 'Get API Key'}
+              </Button>
             )}
           </div>
         </nav>
@@ -160,14 +180,27 @@ export function Navbar({ variant = 'default', title, icon }: NavbarProps) {
         <div className="md:hidden border-t bg-white">
           <div className="container mx-auto px-4 py-4 space-y-4">
             {filteredNavLinks.map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                className="block text-sm font-medium hover:text-blue-600 transition-colors"
-                onClick={() => setIsMobileMenuOpen(false)}
-              >
-                {link.label}
-              </Link>
+              'external' in link && link.external ? (
+                <a
+                  key={link.href}
+                  href={link.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block text-sm font-medium hover:text-blue-600 transition-colors"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  {link.label}
+                </a>
+              ) : (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className="block text-sm font-medium hover:text-blue-600 transition-colors"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  {link.label}
+                </Link>
+              )
             ))}
             
             {/* Mobile Authentication */}
@@ -197,23 +230,14 @@ export function Navbar({ variant = 'default', title, icon }: NavbarProps) {
                   </Button>
                 </div>
               ) : (
-                <div className="space-y-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleSignIn}
-                    className="w-full"
-                  >
-                    Sign In
-                  </Button>
-                  <Button
-                    size="sm"
-                    onClick={handleSignIn}
-                    className="w-full"
-                  >
-                    Get Started
-                  </Button>
-                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSignIn}
+                  className="w-full"
+                >
+                  {isRecognizedUser ? 'Sign In' : 'Get API Key'}
+                </Button>
               )}
             </div>
           </div>

@@ -1,209 +1,262 @@
 # Opportunity Zone Search MCP Server
 
-This is a Next.js-based MCP (Model Context Protocol) server that provides opportunity zone search functionality with OAuth 2.1 authentication. It features a modern web interface for developers and allows users to check if specific coordinates or addresses are located within designated opportunity zones in the United States.
+A Next.js-based MCP (Model Context Protocol) server that provides opportunity zone search functionality with OAuth 2.1 authentication. Features a modern web interface for developers and allows users to check if coordinates or addresses are located within designated opportunity zones in the United States.
 
 ## ✨ Features
 
 ### Core MCP Functionality
 - **Opportunity Zone Lookup**: Check if coordinates or addresses are in opportunity zones
-- **Address Geocoding**: Convert addresses to coordinates using geocode.maps.co
-- **PostGIS Spatial Optimization**: Fast point-in-polygon lookups with spatial indexing
-- **Data Caching**: Persistent caching of GeoJSON data and geocoding results in PostgreSQL
-- **OAuth 2.1 Authentication**: Secure access control with Google OAuth
-- **Multiple Transports**: Support for both SSE and Streamable HTTP transports via [@vercel/mcp-adapter](https://github.com/vercel/mcp-adapter)
+- **Address Geocoding**: Convert addresses to coordinates using geocode.maps.co  
+- **PostGIS Spatial Optimization**: Fast point-in-polygon lookups with spatial indexing (91.9% geometry compression)
+- **Data Caching**: Persistent caching of GeoJSON data and geocoding results
+- **Rate Limiting**: Built-in request throttling to prevent API abuse
 
-### Web Interface & Developer Tools
-- **🏠 Landing Page**: Modern homepage with interactive search demo and rate limiting
-- **📊 Developer Dashboard**: OAuth client management, API token generation, and usage monitoring
-- **🛝 API Playground**: Interactive testing environment for all MCP tools and endpoints
-- **📚 Documentation**: Comprehensive OAuth flow guide and API documentation
-- **🔧 Connection Testing**: Real-time API connectivity and performance testing
-- **📱 Responsive Design**: Mobile-first design built with shadcn/ui components
-- **🌙 Dark Mode Support**: System-aware theme switching
-- **⚡ Real-time Status**: Live service monitoring and cache metrics
+### OAuth 2.1 Integration
+- **PKCE Support**: Secure authorization code flow with code challenges
+- **Multiple Grant Types**: Authorization code, client credentials, and token refresh
+- **API Key Management**: Generate temporary and persistent API keys
+- **Client Registration**: Dynamic client registration for third-party applications
 
-## 🛠 MCP Tools
+### Web Interface
+- **Interactive Dashboard**: Manage API keys, view usage statistics
+- **Real-time Testing**: Test coordinates and addresses directly in the browser
+- **Developer Documentation**: Complete OAuth flow examples and API reference
+- **Responsive Design**: Mobile-friendly interface with modern UI components
 
-This server provides the following MCP tools:
+## 🚀 Quick Start
 
-- **`check_opportunity_zone`** - Check if coordinates or an address is in an opportunity zone
-- **`geocode_address`** - Convert an address to coordinates  
-- **`get_oz_status`** - Get opportunity zone service status and cache information
+### Prerequisites
+- Node.js 18+ and npm
+- PostgreSQL with PostGIS extension
+- A geocoding service API key (geocode.maps.co)
 
-## 🌐 Web Interface
+### Installation
 
-Visit the application in your browser to access:
+1. **Clone and install dependencies**:
+   ```bash
+   git clone https://github.com/your-username/oz-mcp.git
+   cd oz-mcp
+   npm install --legacy-peer-deps
+   ```
 
-- **Homepage** (`/`) - Interactive search demo with rate limiting
-- **Dashboard** (`/dashboard`) - OAuth client management and API keys
-- **Playground** (`/playground`) - Interactive API testing environment
-- **Documentation** (`/docs/oauth-flow`) - Complete OAuth 2.0 implementation guide
-- **Connection Test** (`/test`) - Real-time API connectivity testing
+2. **Configure environment variables**:
+   ```bash
+   cp .env.example .env
+   # Edit .env with your database and API credentials
+   ```
 
-## 📡 API Endpoints
+3. **Set up the database**:
+   ```bash
+   npx prisma migrate deploy
+   npm run seed:opportunity-zones
+   ```
 
-For direct HTTP access, the following REST endpoints are available:
+4. **Start the development server**:
+   ```bash
+   npm run dev
+   ```
 
-- `POST /api/opportunity-zones/geocode` - Geocode an address to coordinates
-- `GET /api/opportunity-zones/check?lat={lat}&lon={lon}` - Check if coordinates are in opportunity zone
-- `GET /api/opportunity-zones/status` - Get service status and performance metrics
-- `GET /api/opportunity-zones/refresh` - Force refresh of opportunity zone data
+Visit `http://localhost:3000` to access the web interface.
 
-### OAuth 2.1 Endpoints
-- `POST /api/oauth/register` - Register a new OAuth client
-- `GET /oauth/authorize` - OAuth authorization endpoint
-- `POST /api/oauth/token` - Token exchange endpoint
-- `GET /.well-known/oauth-authorization-server` - OAuth discovery metadata
+## 🔧 MCP Integration
 
-## Using with
+### For Claude Desktop
 
-### [Claude Desktop](https://www.anthropic.com/products/claude-desktop) and [Claude.ai](https://claude.ai)
+Add to your Claude Desktop configuration:
 
-Claude currently supports only the older SSE transport, so you need to give it a different URL to all the other clients listed here. 
-
-Use the "Connect Apps" button and select "Add Integration". Provide the URL like `https://example.com/mcp/sse` (the `/sse` at the end is important!). Note that Claude Desktop and Web will not accept a `localhost` URL.
-
-### [Cursor](https://cursor.com/)
-
-Edit your `mcp.json` to look like this:
-
-```
+```json
 {
   "mcpServers": {
-      "MyServer": {
-        "name": "LlamaIndex MCP Demo",
-        "url": "https://example.com/mcp/mcp",
-        "transport": "http-stream"
-      },
+    "opportunity-zones": {
+      "command": "npx",
+      "args": ["-y", "@vercel/mcp-adapter", "http://localhost:3000/mcp/sse"],
+      "env": {
+        "OZ_MCP_API_KEY": "your-api-key-here"
+      }
+    }
   }
 }
 ```
 
-### [VSCode](https://code.visualstudio.com/)
+### For Other MCP Clients
 
-VSCode currently [doesn't properly evict the client ID](https://github.com/microsoft/vscode/issues/250960), so client registration fails if you accidentally delete the client (the workaround in that issue will resolve it). Otherwise, it works fine. Add this to your settings.json:
+The server supports multiple transport protocols:
+- **Server-Sent Events (SSE)**: `http://localhost:3000/mcp/sse`
+- **HTTP Streaming**: `http://localhost:3000/mcp/http-stream`
 
-```
-"mcp": {
-    "servers": {
-        "My Server": {
-            "url": "https://example.com/mcp/mcp"
-        }
-    }
-}
-```
+## 📚 Available MCP Tools
 
-### [MCP Inspector](https://modelcontextprotocol.io/docs/tools/inspector)
+### `check_opportunity_zone`
+Check if coordinates are within an opportunity zone.
 
-Tell Inspector to connect to `https://example.com/mcp/mcp`, with Streamable HTTP transport. You can also use the SSE transport by connecting to `https://example.com/mcp/sse` instead.
+**Parameters:**
+- `latitude` (number): Latitude coordinate (-90 to 90)
+- `longitude` (number): Longitude coordinate (-180 to 180)
 
-## 🎨 Frontend Integration
-
-This application features a modern, responsive web interface built with:
-
-- **Next.js 15** with App Router
-- **shadcn/ui** component library for consistent design
-- **Tailwind CSS** for styling with design tokens
-- **Framer Motion** for smooth animations
-- **Lucide React** for icons
-- **TypeScript** for type safety
-
-### Design System
-
-The application uses a comprehensive design system with:
-- **Design Tokens**: CSS custom properties for colors, spacing, and typography
-- **Semantic Colors**: Brand, success, warning, info, and destructive color schemes
-- **Responsive Design**: Mobile-first approach with breakpoint-aware layouts
-- **Dark Mode**: System-aware theme switching with manual override
-- **Accessibility**: ARIA labels, focus management, and keyboard navigation
-
-### Performance Optimizations
-
-- **Code Splitting**: Automatic route-based code splitting
-- **Bundle Optimization**: Removed unused UI components to reduce bundle size
-- **PostGIS Integration**: Optimized spatial queries with 91.9% geometry compression
-- **Rate Limiting**: Built-in rate limiting with user feedback
-- **Caching**: Multi-layer caching for geocoding and opportunity zone data
-
-## 🚀 Running the server
-
-```
-npm install
-prisma generate
-npm run dev
+**Example:**
+```typescript
+await use_mcp_tool("check_opportunity_zone", {
+  latitude: 40.7128,
+  longitude: -74.0060
+});
 ```
 
-The very first time you will also need to run `prisma db push` to create the database tables, including the new opportunity zone and geocoding cache tables.
+### `geocode_address`
+Convert an address to coordinates and check opportunity zone status.
 
-### Environment variables
+**Parameters:** 
+- `address` (string): Full address to geocode
 
-Required environment variables should be in `.env`: (not `.env.local` because Prisma doesn't support it)
-
-```
-# Database (required for OAuth and caching)
-DATABASE_URL="postgresql://user:pass@server/database"
-
-# OAuth Authentication 
-AUTH_SECRET="any random string"
-GOOGLE_CLIENT_ID="a Google OAuth client ID"
-GOOGLE_CLIENT_SECRET="a Google OAuth client secret"
-
-# Redis (required for SSE transport)
-REDIS_URL="rediss://user:pass@host:6379"
-
-# Opportunity Zone Service
-GEOCODING_API_KEY="your-geocode-maps-co-api-key"
-OZ_DATA_URL="https://pub-757ceba6f52a4399beb76c4667a53f08.r2.dev/oz-all.geojson"
-
-# Optional: Custom app URL for OAuth redirect
-NEXTAUTH_URL="https://your-domain.com"
+**Example:**
+```typescript
+await use_mcp_tool("geocode_address", {
+  address: "1600 Pennsylvania Avenue NW, Washington, DC 20500"
+});
 ```
 
-**Required Variables:**
-- `DATABASE_URL` - PostgreSQL database for OAuth authentication and data caching
-- `AUTH_SECRET` - Random secret string for session encryption
-- `GOOGLE_CLIENT_ID` & `GOOGLE_CLIENT_SECRET` - Google OAuth credentials
-- `REDIS_URL` - Redis instance for SSE transport (Claude Desktop/Web support)
-- `GEOCODING_API_KEY` - API key for geocode.maps.co geocoding service
+### `validate_search_params`
+Validate search parameters before making requests.
 
-**Optional Variables:**
-- `OZ_DATA_URL` - URL for opportunity zone GeoJSON data (defaults to public R2 bucket)
-- `NEXTAUTH_URL` - Base URL for OAuth redirects (auto-detected in most cases)
+**Parameters:**
+- `params` (object): Search parameters to validate
 
-## Architecture
+### `get_api_status`
+Get current API status and rate limiting information.
 
-Key components of this opportunity zone MCP server:
+## 🔐 OAuth 2.1 Implementation
 
-**MCP Server:**
-* `/src/app/mcp/[transport]/route.ts` - MCP server implementation with opportunity zone tools
+### Authorization Flow
 
-**Services:**
-* `/src/lib/services/opportunity-zones.ts` - Core opportunity zone lookup service with spatial indexing
-* `/src/lib/services/geocoding.ts` - Address geocoding service with caching
+1. **Client Registration**:
+   ```bash
+   curl -X POST http://localhost:3000/api/oauth/register \\
+     -H "Content-Type: application/json" \\
+     -d '{"client_name": "Your App", "redirect_uris": ["http://localhost:8080/callback"]}'
+   ```
 
-**API Routes:**
-* `/src/app/api/opportunity-zones/*` - REST API endpoints for direct HTTP access
-* `/src/app/api/oauth/*` - OAuth client registration and token exchange
-* `/src/app/oauth/authorize/page.tsx` - OAuth consent screen
+2. **Authorization Request**:
+   ```
+   GET /oauth/authorize?response_type=code&client_id=CLIENT_ID&state=STATE&code_challenge=CHALLENGE&code_challenge_method=S256&redirect_uri=CALLBACK_URL
+   ```
 
-**Authentication:**
-* `/src/app/auth.ts` - Auth.js authentication configuration (Google OAuth)
+3. **Token Exchange**:
+   ```bash
+   curl -X POST http://localhost:3000/api/oauth/token \\
+     -H "Content-Type: application/x-www-form-urlencoded" \\
+     -d "grant_type=authorization_code&code=AUTH_CODE&client_id=CLIENT_ID&code_verifier=VERIFIER"
+   ```
 
-**Database Models:**
-The app uses PostgreSQL with Prisma for:
-- OAuth authentication (clients, access tokens, auth codes)
-- Opportunity zone data caching (`OpportunityZoneCache` model)
-- Geocoding result caching (`GeocodingCache` model)
-- User sessions and accounts
+### API Authentication
 
-You can swap PostgreSQL for another Prisma-supported database if needed.
+Use the access token in requests:
+```bash
+curl -H "Authorization: Bearer ACCESS_TOKEN" \\
+  "http://localhost:3000/api/opportunity-zones/check?lat=40.7128&lng=-74.0060"
+```
 
-You'll also notice:
-* `src/app/auth.ts` - this implements Auth.js authentication to your app itself. It's configured to use Google as a provider, but you can change it to use any other provider supports by Auth.js. This is not required for the MCP server to work, but it's a good idea to have it in place for your own app.
-* `src/app/api/auth/[...nextauth]/route.ts` - this plumbs in the Auth.js authentication, and is again not part of the OAuth implementation.
+## 🗄️ Database Schema
 
-## Deploying to production
+The application uses PostgreSQL with PostGIS for spatial data:
 
-This app only works if deployed to Vercel currently, due to its dependence on the `@vercel/mcp-adapter` package, which in turn is required to support the old SSE transport. We didn't feel like implementing a whole extra protocol just for Claude Desktop.
+- **PostGIS Extension**: Enabled for spatial operations
+- **Optimized Geometry**: 91.9% compression using `ST_SimplifyPreserveTopology`
+- **Spatial Indexing**: GIST indexes for fast point-in-polygon queries
+- **OAuth Tables**: Secure client and token management
 
-Deploy as usual. You'll need to add `prisma generate` to your build command, and of course you'll need all the same environment variables as in the development environment.
+Key tables:
+- `opportunity_zones_optimized`: Spatial geometry data with GIST indexing
+- `oauth_clients`: Registered OAuth applications  
+- `oauth_authorization_codes`: Temporary authorization codes
+- `oauth_access_tokens`: Issued access tokens
+
+## ⚡ Performance
+
+- **Spatial Queries**: Sub-100ms response times for coordinate lookups
+- **Geocoding Cache**: Persistent caching reduces external API calls
+- **Connection Pooling**: Efficient database connection management
+- **Rate Limiting**: Configurable limits prevent API abuse
+
+## 📖 API Documentation
+
+### REST Endpoints
+
+- `GET /api/opportunity-zones/check` - Check coordinates
+- `POST /api/opportunity-zones/geocode` - Geocode address
+- `GET /api/opportunity-zones/status` - API status
+- `POST /api/oauth/register` - Register OAuth client
+- `POST /api/oauth/token` - Exchange tokens
+
+### Rate Limits
+
+- **Free tier**: 100 requests per hour
+- **Authenticated**: 1000 requests per hour  
+- **Premium**: Custom limits available
+
+## 🧪 Testing
+
+```bash
+# Run all tests
+npm test
+
+# Test specific functionality
+npm run test:oauth
+npm run test:opportunity-zones
+npm run test:mcp
+
+# Load testing
+npm run test:load
+```
+
+## 🚀 Deployment
+
+### Vercel (Recommended)
+
+1. Connect your GitHub repository to Vercel
+2. Configure environment variables in Vercel dashboard
+3. Deploy automatically on every push
+
+### Environment Variables
+
+Required variables:
+```env
+DATABASE_URL=postgresql://...
+GEOCODING_API_KEY=your-geocoding-key
+NEXTAUTH_SECRET=your-secret-key
+NEXTAUTH_URL=https://your-domain.com
+```
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/amazing-feature`
+3. Commit changes: `git commit -m 'Add amazing feature'`
+4. Push to branch: `git push origin feature/amazing-feature`
+5. Open a Pull Request
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🆘 Support
+
+- **Documentation**: Visit our [comprehensive guides](https://modelcontextprotocol.io/docs)
+- **Issues**: Report bugs on [GitHub Issues](https://github.com/BetoIII/oz-mcp/issues)
+- **Community**: Join our [Discord](https://discord.gg/your-server)
+
+## 🙏 Acknowledgments
+
+- **Opportunity Zone Data**: U.S. Treasury Department
+- **Geocoding**: geocode.maps.co service
+- **Spatial Operations**: PostGIS community
+- **MCP Protocol**: Anthropic's Model Context Protocol
+
+## 📚 Additional Resources
+
+- [Model Context Protocol Documentation](https://modelcontextprotocol.io/docs)
+- [OAuth 2.1 Specification](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-10)
+- [PostGIS Documentation](https://postgis.net/documentation/)
+- [Next.js Documentation](https://nextjs.org/docs)
+
+---
+
+**Built with ❤️ for the developer community** | [Privacy Policy](http://localhost:3000/legal/privacy-policy) | [Terms of Service](http://localhost:3000/legal/terms-of-service)

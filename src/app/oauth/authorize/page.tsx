@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic';
 export default async function AuthorizePage({
   searchParams,
 }: {
-  searchParams: { [key: string]: string | string[] | undefined };
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const session = await auth();
   const params = await searchParams;
