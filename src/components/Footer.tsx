@@ -50,12 +50,12 @@ export function Footer() {
             <h3 className="mb-4 font-semibold">Legal</h3>
             <ul className="space-y-2 text-sm text-muted-foreground">
               <li>
-                <Link href="#" className="hover:text-foreground">
+                <Link href="/legal/privacy-policy" className="hover:text-foreground">
                   Privacy Policy
                 </Link>
               </li>
               <li>
-                <Link href="#" className="hover:text-foreground">
+                <Link href="/legal/terms-of-service" className="hover:text-foreground">
                   Terms of Service
                 </Link>
               </li>
