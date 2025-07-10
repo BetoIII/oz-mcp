@@ -133,55 +133,20 @@ export async function GET(request: NextRequest) {
   let latitude: number;
   let longitude: number;
   let geocodedAddress: string;
+  let validationResult: any = null;
 
   try {
-    // If address is provided, validate search and then geocode
+    // If address is provided, validate search and increment counter BEFORE performing search
     if (address) {
-      // For address searches, we need to validate first but only increment after successful geocoding
-      const cookieStore = await cookies()
-      const existingCookie = cookieStore.get(COOKIE_NAME)
+      validationResult = await validateAndIncrementSearch()
       
-      // Check current search status without incrementing
-      let currentSearchCount = 0
-      let isCurrentlyLocked = false
-      
-      if (existingCookie) {
-        try {
-          const tracker: SearchTracker = JSON.parse(existingCookie.value)
-          currentSearchCount = tracker.searchCount
-          
-          // Check if locked out
-          if (tracker.lockedUntil) {
-            const lockoutEnd = new Date(tracker.lockedUntil)
-            const now = new Date()
-            if (now < lockoutEnd) {
-              isCurrentlyLocked = true
-            }
-          }
-          
-          // Check if week has passed
-          const firstSearch = new Date(tracker.firstSearchDate)
-          const weekFromFirstSearch = new Date(firstSearch.getTime() + LOCKOUT_DURATION_MS)
-          const now = new Date()
-          
-          if (now > weekFromFirstSearch) {
-            currentSearchCount = 0
-            isCurrentlyLocked = false
-          }
-        } catch (error) {
-          // Invalid cookie
-          currentSearchCount = 0
-          isCurrentlyLocked = false
-        }
-      }
-      
-      // Check if user is locked out or at limit
-      if (isCurrentlyLocked || currentSearchCount >= FREE_SEARCH_LIMIT) {
+      // Check if search is allowed
+      if (!validationResult.allowed) {
         return NextResponse.json(
           { 
             error: 'Search limit reached',
-            message: 'You\'ve used all 3 free searches. Create an account for unlimited searches.',
-            searchCount: currentSearchCount
+            message: validationResult.message,
+            searchCount: validationResult.searchCount
           },
           { status: 429 }
         )
@@ -208,8 +173,6 @@ export async function GET(request: NextRequest) {
       latitude = geocodeResult.latitude;
       longitude = geocodeResult.longitude;
       geocodedAddress = geocodeResult.displayName || address;
-      
-      // Don't increment search count yet - wait until after successful OZ check
     } else {
       latitude = parseFloat(lat!);
       longitude = parseFloat(lon!);
@@ -278,7 +241,7 @@ export async function GET(request: NextRequest) {
         mcpText += `\n[SUCCESS] ⚡ Query completed - method: ${result.method}`;
       }
 
-      return NextResponse.json({
+      const mcpResponse = NextResponse.json({
         jsonrpc: '2.0',
         id: 1,
         result: {
@@ -290,6 +253,19 @@ export async function GET(request: NextRequest) {
           ]
         }
       }, { status: 200 });
+
+      // Save the updated tracker to cookie if we have validation result
+      if (validationResult && validationResult.tracker) {
+        mcpResponse.cookies.set(COOKIE_NAME, JSON.stringify(validationResult.tracker), {
+          maxAge: LOCKOUT_DURATION_MS / 1000,
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'lax',
+          path: '/'
+        })
+      }
+
+      return mcpResponse;
     }
 
     // Enhanced response with PostGIS optimization info (original format)
@@ -332,18 +308,15 @@ export async function GET(request: NextRequest) {
 
     const finalResponse = NextResponse.json(response, { status: 200 })
     
-    // For address-based searches, increment search count only after successful completion
-    if (address) {
-      const validation = await validateAndIncrementSearch()
-      if (validation.tracker) {
-        finalResponse.cookies.set(COOKIE_NAME, JSON.stringify(validation.tracker), {
-          maxAge: LOCKOUT_DURATION_MS / 1000,
-          httpOnly: true,
-          secure: process.env.NODE_ENV === 'production',
-          sameSite: 'lax',
-          path: '/'
-        })
-      }
+    // Save the updated tracker to cookie if we have validation result
+    if (validationResult && validationResult.tracker) {
+      finalResponse.cookies.set(COOKIE_NAME, JSON.stringify(validationResult.tracker), {
+        maxAge: LOCKOUT_DURATION_MS / 1000,
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        path: '/'
+      })
     }
     
     return finalResponse
