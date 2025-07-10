@@ -13,7 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Progress } from '@/components/ui/progress';
 import { UserAvatar } from '@/components/ui/user-avatar';
-import { Copy, ExternalLink, Key, Trash2, User, Shield, Clock, Database, Plus, AlertTriangle } from 'lucide-react';
+import { Copy, ExternalLink, Key, Trash2, User, Shield, Clock, Database, Plus, AlertTriangle, Settings } from 'lucide-react';
 import { config } from '@/lib/utils';
 import { Footer } from "@/components/Footer"
 import { DashboardClient } from './DashboardClient';
@@ -78,7 +78,7 @@ export default async function DashboardPage() {
 
     // Use default callback URLs for the OAuth flow
     const defaultRedirectUris = [
-      `${process.env.NEXTAUTH_URL || 'https://oz-mcp.vercel.app'}/oauth/callback`,
+      `${config.baseUrl}/oauth/callback`,
       'http://localhost:3000/callback'
     ];
     
@@ -197,6 +197,39 @@ export default async function DashboardPage() {
     redirect('/dashboard');
   }
 
+  async function updateClientRedirectUris(formData: FormData) {
+    'use server';
+    
+    const session = await requireAuth();
+    const clientId = formData.get('clientId') as string;
+    
+    const client = await prisma.client.findFirst({
+      where: {
+        id: clientId,
+        userId: session.user!.id
+      }
+    });
+
+    if (!client) {
+      throw new Error('Client not found or unauthorized');
+    }
+
+    // Update redirect URIs to use current environment
+    const updatedRedirectUris = [
+      `${config.baseUrl}/oauth/callback`,
+      'http://localhost:3000/callback'
+    ];
+
+    await prisma.client.update({
+      where: { id: clientId },
+      data: {
+        redirectUris: updatedRedirectUris
+      }
+    });
+
+    redirect('/dashboard');
+  }
+
   // Determine the callback URL based on environment
   const callbackUrl = `${config.baseUrl}/oauth/callback`;
 
@@ -308,6 +341,42 @@ export default async function DashboardPage() {
                               </div>
                             </div>
                           </div>
+
+                          {/* Callback URI Section - Development Only */}
+                          {config.isDevelopment && (
+                            <div className="space-y-2">
+                              <Label className="text-xs text-slate-500">CALLBACK URI</Label>
+                              <div className="flex items-center space-x-2">
+                                <code className="text-xs bg-slate-100 px-2 py-1 rounded flex-1 font-mono">
+                                  {client.redirectUris[0]}
+                                </code>
+                                <Button size="sm" variant="outline" className="h-6 w-6 p-0">
+                                  <Copy className="h-3 w-3" />
+                                </Button>
+                              </div>
+                              {client.redirectUris[0]?.includes('oz-mcp.vercel.app') && (
+                                <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded text-xs text-amber-700">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center space-x-1">
+                                      <AlertTriangle className="h-3 w-3" />
+                                      <span className="font-medium">Local Development Issue Detected</span>
+                                    </div>
+                                    <form action={updateClientRedirectUris} className="inline">
+                                      <input type="hidden" name="clientId" value={client.id} />
+                                      <Button size="sm" variant="outline" className="h-6 text-xs bg-white hover:bg-gray-50">
+                                        <Settings className="h-3 w-3 mr-1" />
+                                        Fix Callback URI
+                                      </Button>
+                                    </form>
+                                  </div>
+                                  <p className="mt-1">
+                                    This client's callback URI points to production. When creating API keys locally, 
+                                    you'll be redirected to production. Click "Fix Callback URI" to update for local development.
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          )}
 
                           {/* API Keys Section */}
                           <div className="pt-4 border-t border-slate-200">
