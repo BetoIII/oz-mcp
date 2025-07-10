@@ -105,13 +105,16 @@ const handler = async (req: Request) => {
             // Check if point is in an opportunity zone
             const result = await opportunityZoneService.checkPoint(coords.latitude, coords.longitude, log);
             
+            // Only true if both conditions are met to avoid contradictory messages
+            const isInOZ = result.isInZone && result.zoneId;
+            
             const responseText = address 
-              ? `Address "${address}" (${coords.latitude}, ${coords.longitude}) is ${result.isInZone ? 'in' : 'not in'} an opportunity zone.`
-              : `Point (${coords.latitude}, ${coords.longitude}) is ${result.isInZone ? 'in' : 'not in'} an opportunity zone.`;
+              ? `Address "${address}" (${coords.latitude}, ${coords.longitude}) is ${isInOZ ? 'in' : 'not in'} an opportunity zone.`
+              : `Point (${coords.latitude}, ${coords.longitude}) is ${isInOZ ? 'in' : 'not in'} an opportunity zone.`;
 
             const fullResponse = [
               responseText,
-              result.isInZone && result.zoneId ? `Zone ID: ${result.zoneId}` : '',
+              isInOZ ? `Zone ID: ${result.zoneId}` : '',
               `Data version: ${result.metadata.version}`,
               `Last updated: ${result.metadata.lastUpdated.toISOString()}`,
               `Feature count: ${result.metadata.featureCount}`,

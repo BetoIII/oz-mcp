@@ -154,13 +154,16 @@ export async function POST(request: NextRequest) {
           // Check if point is in an opportunity zone
           const ozResult = await opportunityZoneService.checkPoint(coords.latitude, coords.longitude, log);
           
+          // Only true if both conditions are met to avoid contradictory messages
+          const isInOZ = ozResult.isInZone && ozResult.zoneId;
+          
           const responseText = address 
-            ? `Address "${address}" (${coords.latitude}, ${coords.longitude}) is ${ozResult.isInZone ? 'in' : 'not in'} an opportunity zone.`
-            : `Point (${coords.latitude}, ${coords.longitude}) is ${ozResult.isInZone ? 'in' : 'not in'} an opportunity zone.`;
+            ? `Address "${address}" (${coords.latitude}, ${coords.longitude}) is ${isInOZ ? 'in' : 'not in'} an opportunity zone.`
+            : `Point (${coords.latitude}, ${coords.longitude}) is ${isInOZ ? 'in' : 'not in'} an opportunity zone.`;
 
           const fullResponse = [
             responseText,
-            ozResult.isInZone && ozResult.zoneId ? `Zone ID: ${ozResult.zoneId}` : '',
+            isInOZ ? `Zone ID: ${ozResult.zoneId}` : '',
             `Data version: ${ozResult.metadata.version}`,
             `Last updated: ${ozResult.metadata.lastUpdated.toISOString()}`,
             `Feature count: ${ozResult.metadata.featureCount}`,

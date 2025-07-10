@@ -93,13 +93,13 @@ export class PostGISOpportunityZoneService {
         SELECT * FROM check_point_in_opportunity_zone_fast(${lat}, ${lon})
       `
 
-      const isInZone = result.length > 0
+      const isInZone = result.length > 0 && !!result[0]?.geoid
       
       if (isInZone) {
         log("success", `🎯 Point (${lat}, ${lon}) found in opportunity zone: ${result[0].geoid}`);
         log("success", `✅ RESULT: YES - In Opportunity Zone`);
       } else {
-        log("success", `📍 Point (${lat}, ${lon}) is not in any opportunity zone`);
+        log("success", `🎯 Point (${lat}, ${lon}) is not in any opportunity zone`);
         log("success", `❌ RESULT: NO - Not in Opportunity Zone`);
       }
 
