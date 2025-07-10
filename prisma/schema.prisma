@@ -19,6 +19,12 @@ model User {
   clients       Client[]
   accessTokens  AccessToken[]
   authCodes     AuthCode[]
+
+  // Monthly usage tracking (rolling 30-day period)
+  monthlyUsageCount  Int      @default(0)
+  monthlyUsageLimit  Int      @default(18)
+  usagePeriodStart   DateTime?
+  lastApiUsedAt      DateTime?
 }
 
 model Account {
@@ -79,7 +85,7 @@ model AccessToken {
   client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
+  
   createdAt DateTime @default(now())
 }
 

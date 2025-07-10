@@ -149,7 +149,7 @@ export async function POST(request: NextRequest) {
 
     // Use a transaction to atomically delete auth code and create access token
     const accessToken = randomBytes(32).toString('hex');
-    const expiresAt = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000); // 1 year
+    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 1 month
 
     console.log("Creating access token and deleting auth code in transaction");
     const result = await prisma.$transaction(async (tx) => {
@@ -182,7 +182,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       access_token: accessToken,
       token_type: 'Bearer',
-      expires_in: 31536000, // 1 year in seconds
+      expires_in: 2592000, // 1 month in seconds (30 * 24 * 60 * 60)
     }, {
       headers: {
         'Access-Control-Allow-Origin': '*',

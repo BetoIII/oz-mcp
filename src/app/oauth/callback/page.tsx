@@ -184,7 +184,7 @@ function OAuthCallbackContent() {
           
           <div className="space-y-3">
             <Link 
-              href="/docs/oauth-flow" 
+              href="/docs" 
               className="w-full bg-blue-600 text-white py-3 px-6 rounded-xl hover:bg-blue-700 transition-colors font-medium inline-flex items-center justify-center"
             >
               View Documentation
@@ -237,7 +237,7 @@ function OAuthCallbackContent() {
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-gray-600">Expires In:</span>
-                  <code className="text-gray-800 bg-white px-3 py-1 rounded border">1 year</code>
+                  <code className="text-gray-800 bg-white px-3 py-1 rounded border">1 month</code>
                 </div>
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
@@ -275,7 +275,7 @@ function OAuthCallbackContent() {
                 </li>
                 <li className="flex items-start space-x-2">
                   <div className="w-2 h-2 bg-blue-600 rounded-full mt-2"></div>
-                  <span>The API key will expire in 1 year</span>
+                  <span>The API key will expire in 1 month</span>
                 </li>
               </ul>
             </div>
@@ -295,7 +295,7 @@ function OAuthCallbackContent() {
               Test API in Playground
             </Link>
             <Link 
-              href="/docs/oauth-flow" 
+              href="/docs" 
               className="flex-1 bg-gray-100 text-gray-700 py-3 px-6 rounded-xl hover:bg-gray-200 transition-colors font-medium text-center"
             >
               View Documentation
