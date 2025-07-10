@@ -205,7 +205,7 @@ export default function ClaudeSetupPage() {
                 <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg">
                   <h4 className="font-semibold text-blue-800 mb-2">Example with real API key:</h4>
                   <div className="bg-gray-900 text-green-400 p-3 rounded font-mono text-sm overflow-x-auto">
-                    "Authorization: Bearer 0a02da4c5e9cff0f5762387c56f0d5f44e114dc2809c5ed75199f6ee01823f9c"
+                    "Authorization: Bearer YOUR_API_KEY_HERE"
                   </div>
                 </div>
               </div>
