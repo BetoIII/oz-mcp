@@ -238,15 +238,15 @@ export async function GET(request: NextRequest) {
 
     // If MCP format is requested, return MCP-style response
     if (format === 'mcp') {
-      const isInOZ = result.isInZone;
+      const isInOZ = result.isInZone && result.zoneId; // Only true if both conditions are met
       const zoneId = result.zoneId;
       
       let mcpText = `Address "${geocodedAddress}" (${latitude}, ${longitude}) is`;
       
-      if (isInOZ && zoneId) {
+      if (isInOZ) {
         mcpText += ` in an opportunity zone.\nZone ID: ${zoneId}`;
       } else {
-        mcpText += ` in an opportunity zone.`; // This will be handled by the null zone ID
+        mcpText += ` not in an opportunity zone.`;
       }
       
       mcpText += `\nData version: ${result.metadata.version}`;
@@ -262,18 +262,18 @@ export async function GET(request: NextRequest) {
       
       if (result.method === 'postgis') {
         mcpText += `\n[SUCCESS] ✅ PostGIS extension is available`;
-        if (isInOZ && zoneId) {
+        if (isInOZ) {
           mcpText += `\n[SUCCESS] 🎯 Point (${latitude}, ${longitude}) found in opportunity zone: ${zoneId}`;
         } else {
-          mcpText += `\n[SUCCESS] 🎯 Point (${latitude}, ${longitude}) found in opportunity zone: null`;
+          mcpText += `\n[SUCCESS] 🎯 Point (${latitude}, ${longitude}) is not in any opportunity zone`;
         }
         mcpText += `\n[SUCCESS] ⚡ PostGIS query completed - method: postgis`;
       } else {
         mcpText += `\n[INFO] 📦 Using fallback R-Bush spatial index`;
-        if (isInOZ && zoneId) {
+        if (isInOZ) {
           mcpText += `\n[SUCCESS] 🎯 Point (${latitude}, ${longitude}) found in opportunity zone: ${zoneId}`;
         } else {
-          mcpText += `\n[SUCCESS] 🎯 Point (${latitude}, ${longitude}) found in opportunity zone: null`;
+          mcpText += `\n[SUCCESS] 🎯 Point (${latitude}, ${longitude}) is not in any opportunity zone`;
         }
         mcpText += `\n[SUCCESS] ⚡ Query completed - method: ${result.method}`;
       }

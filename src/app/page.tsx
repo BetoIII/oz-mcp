@@ -114,8 +114,8 @@ export default function HomePage() {
       const lat = parseFloat(addressMatch[2]);
       const lon = parseFloat(addressMatch[3]);
 
-      // Check if in opportunity zone
-      const isInOZ = text.includes('is in an opportunity zone') && !text.includes('opportunity zone: null');
+      // Check if in opportunity zone - simplified logic with consistent messaging
+      const isInOZ = text.includes('is in an opportunity zone') && !text.includes('is not in an opportunity zone');
       
       // Extract zone ID
       let zoneId = null;

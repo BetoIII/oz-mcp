@@ -251,8 +251,8 @@ export default function PlaygroundClient() {
       const lat = parseFloat(addressMatch[2]);
       const lon = parseFloat(addressMatch[3]);
 
-      // Check if in opportunity zone
-      const isInOZ = text.includes('is in an opportunity zone') && !text.includes('opportunity zone: null');
+      // Check if in opportunity zone - simplified logic with consistent messaging
+      const isInOZ = text.includes('is in an opportunity zone') && !text.includes('is not in an opportunity zone');
       
       // Extract zone ID
       let zoneId = null;
@@ -260,12 +260,6 @@ export default function PlaygroundClient() {
         const zoneMatch = text.match(/Zone ID: (\d+)/);
         if (zoneMatch) {
           zoneId = zoneMatch[1];
-        }
-      } else {
-        // Check for null zone
-        const nullZoneMatch = text.match(/opportunity zone: null/);
-        if (nullZoneMatch) {
-          zoneId = null;
         }
       }
 
