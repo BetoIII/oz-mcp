@@ -315,8 +315,7 @@ export default function HomePage() {
             in Seconds
           </h1>
           <p className="mx-auto mb-16 max-w-2xl text-xl text-muted-foreground">
-            Instantly verify Qualified Opportunity Zone (QOZ) eligibility for any U.S. address. Empowering investors, CPAs, and PropTech
-            builders with our lightning-fast API.
+            Instantly verify Qualified Opportunity Zone (QOZ) eligibility for any U.S. address with our lightning-fast API.
           </p>
         </motion.div>
 
@@ -515,7 +514,7 @@ export default function HomePage() {
                 <MapPin className="h-8 w-8 text-blue-600" />
               </div>
               <h3 className="mb-2 text-xl font-semibold">1. Enter Address</h3>
-              <p className="text-muted-foreground">Simply paste any U.S. address into our search bar</p>
+              <p className="text-muted-foreground">Enter any U.S. address - our free geocoding service handles the formatting.</p>
             </motion.div>
 
             <motion.div
@@ -528,7 +527,7 @@ export default function HomePage() {
                 <Zap className="h-8 w-8 text-green-600" />
               </div>
               <h3 className="mb-2 text-xl font-semibold">2. Get Instant Results</h3>
-              <p className="text-muted-foreground">Receive immediate OZ status with tract ID and confidence level</p>
+              <p className="text-muted-foreground">Receive immediate OZ status with tract ID and coordinates.</p>
             </motion.div>
 
             <motion.div
@@ -540,8 +539,8 @@ export default function HomePage() {
               <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-purple-100">
                 <Bot className="h-8 w-8 text-purple-600" />
               </div>
-              <h3 className="mb-2 text-xl font-semibold">3. Integrate & Scale</h3>
-              <p className="text-muted-foreground">Add to your AI assistants, apps, or workflows with our API</p>
+              <h3 className="mb-2 text-xl font-semibold">3. Integrate & Search</h3>
+              <p className="text-muted-foreground">Add to Claude, ChatGPT, or any app with our RESTful API</p>
             </motion.div>
           </div>
         </div>
@@ -642,113 +641,46 @@ export default function HomePage() {
       <section id="pricing" className="bg-white py-16">
         <div className="container mx-auto px-4">
           <div className="text-center">
-            <h2 className="mb-4 text-3xl font-bold">Simple, usage-based pricing</h2>
+            <h2 className="mb-4 text-3xl font-bold">Always Free</h2>
             <p className="mb-12 text-lg text-muted-foreground">
-              Choose the plan that fits your needs. Upgrade or downgrade anytime.
+              15 lookups per month. Unlimited clients and API keys.
             </p>
           </div>
 
-          <div className="mx-auto grid max-w-5xl gap-8 md:grid-cols-3">
+          <div className="mx-auto flex max-w-5xl justify-center">
             <Card className="relative">
               <CardHeader>
                 <CardTitle>Free</CardTitle>
-                <CardDescription>Perfect for trying out the service</CardDescription>
-                <div className="text-3xl font-bold">
+                <CardDescription>Perfect for retail investors</CardDescription>
+                <div className="text-3xl font-bold text-center">
                   $0<span className="text-lg font-normal">/month</span>
                 </div>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <ul className="space-y-2 text-sm">
+              <CardContent className="space-y-2">
+                <ul className="space-y-2 text-sm pb-4">
                   <li className="flex items-center space-x-2">
                     <CheckCircle className="h-4 w-4 text-green-600" />
                     <span>15 lookups/month</span>
                   </li>
                   <li className="flex items-center space-x-2">
                     <CheckCircle className="h-4 w-4 text-green-600" />
-                    <span>No card required</span>
+                    <span>No credit card required</span>
                   </li>
                   <li className="flex items-center space-x-2">
                     <CheckCircle className="h-4 w-4 text-green-600" />
                     <span>API documentation</span>
                   </li>
                 </ul>
-                <Link href="/playground">
-                  <Button className="w-full" variant="outline">Get Started Free</Button>
+                <Link href="/dashboard">
+                  <Button className="w-full" variant="default">Get Started Free</Button>
                 </Link>
               </CardContent>
             </Card>
-
-            <Card className="relative border-blue-200 shadow-lg">
-              <Badge className="absolute -top-2 left-1/2 -translate-x-1/2 bg-blue-600">Most Popular</Badge>
-              <CardHeader>
-                <CardTitle>Pro</CardTitle>
-                <CardDescription>For active investors and professionals</CardDescription>
-                <div className="text-3xl font-bold">
-                  $9<span className="text-lg font-normal">/month</span>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <ul className="space-y-2 text-sm">
-                  <li className="flex items-center space-x-2">
-                    <CheckCircle className="h-4 w-4 text-green-600" />
-                    <span>500 lookups/month</span>
-                  </li>
-                  <li className="flex items-center space-x-2">
-                    <CheckCircle className="h-4 w-4 text-green-600" />
-                    <span>Priority support</span>
-                  </li>
-                  <li className="flex items-center space-x-2">
-                    <CheckCircle className="h-4 w-4 text-green-600" />
-                    <span>Usage analytics</span>
-                  </li>
-                  <li className="flex items-center space-x-2">
-                    <CheckCircle className="h-4 w-4 text-green-600" />
-                    <span>Webhook notifications</span>
-                  </li>
-                </ul>
-                <Button className="w-full" asChild>
-                  <Link href="/dashboard">Start Pro Trial</Link>
-                </Button>
-              </CardContent>
-            </Card>
-
-            <Card className="relative">
-              <CardHeader>
-                <CardTitle>Scale</CardTitle>
-                <CardDescription>For high-volume applications</CardDescription>
-                <div className="text-3xl font-bold">
-                  $49<span className="text-lg font-normal">/month</span>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <ul className="space-y-2 text-sm">
-                  <li className="flex items-center space-x-2">
-                    <CheckCircle className="h-4 w-4 text-green-600" />
-                    <span>5,000 lookups/month</span>
-                  </li>
-                  <li className="flex items-center space-x-2">
-                    <CheckCircle className="h-4 w-4 text-green-600" />
-                    <span>Dedicated support</span>
-                  </li>
-                  <li className="flex items-center space-x-2">
-                    <CheckCircle className="h-4 w-4 text-green-600" />
-                    <span>Custom integrations</span>
-                  </li>
-                  <li className="flex items-center space-x-2">
-                    <CheckCircle className="h-4 w-4 text-green-600" />
-                    <span>Webhook notifications</span>
-                  </li>
-                </ul>
-                <Button className="w-full" variant="outline" asChild>
-                  <Link href="/dashboard">Upgrade to Scale</Link>
-                </Button>
-              </CardContent>
-            </Card>
-          </div>
+            </div>
 
           <div className="mt-12 text-center">
             <p className="text-lg text-muted-foreground">
-              Need higher volume or custom features? <Link href="/dashboard" className="text-blue-600 hover:underline font-medium">Contact us for Enterprise pricing</Link>
+              Need higher volume or custom features? <Link href="/pricing" className="text-blue-600 hover:underline font-medium">Check out our pricing page</Link>
             </p>
           </div>
         </div>
@@ -786,7 +718,7 @@ export default function HomePage() {
                 <Shield className="h-6 w-6 text-green-600" />
               </div>
               <h3 className="mb-2 font-semibold">99.9% Accurate</h3>
-              <p className="text-sm text-muted-foreground">Based on official IRS and Census Bureau data sources</p>
+              <p className="text-sm text-muted-foreground">Based on official data sources</p>
             </motion.div>
 
             <motion.div
@@ -813,6 +745,86 @@ export default function HomePage() {
               </div>
               <h3 className="mb-2 font-semibold">Developer Friendly</h3>
               <p className="text-sm text-muted-foreground">RESTful API with comprehensive docs and SDKs</p>
+            </motion.div>
+          </div>
+        </div>
+      </section>
+
+      {/* Who Uses Section */}
+      <section className="bg-white py-16">
+        <div className="container mx-auto px-4">
+          <div className="text-center">
+            <h2 className="mb-4 text-3xl font-bold">Who uses OZ-MCP?</h2>
+            <p className="mb-12 text-lg text-muted-foreground">
+              From individual investors to enterprise PropTech platforms
+            </p>
+          </div>
+
+          <div className="mx-auto grid max-w-6xl gap-8 md:grid-cols-3">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5 }}
+            >
+              <Card className="h-full">
+                <CardContent className="p-6">
+                  <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-blue-100">
+                    <Users className="h-6 w-6 text-blue-600" />
+                  </div>
+                  <h3 className="mb-3 text-xl font-semibold">Independent Investors</h3>
+                  <blockquote className="mb-4 italic text-muted-foreground">
+                    "I screen deals in chat before calling the broker."
+                  </blockquote>
+                  <p className="text-sm text-muted-foreground">
+                    Real estate investors use OZ-MCP to quickly verify opportunity zone eligibility 
+                    during due diligence, saving hours of manual research.
+                  </p>
+                </CardContent>
+              </Card>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.1 }}
+            >
+              <Card className="h-full">
+                <CardContent className="p-6">
+                  <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-green-100">
+                    <DollarSign className="h-6 w-6 text-green-600" />
+                  </div>
+                  <h3 className="mb-3 text-xl font-semibold">Tax Advisors & CPAs</h3>
+                  <blockquote className="mb-4 italic text-muted-foreground">
+                    "Quick OZ checks during client meetings."
+                  </blockquote>
+                  <p className="text-sm text-muted-foreground">
+                    Tax professionals integrate OZ-MCP into their workflow to provide 
+                    instant guidance on opportunity zone investments for their clients.
+                  </p>
+                </CardContent>
+              </Card>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.2 }}
+            >
+              <Card className="h-full">
+                <CardContent className="p-6">
+                  <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-purple-100">
+                    <Bot className="h-6 w-6 text-purple-600" />
+                  </div>
+                  <h3 className="mb-3 text-xl font-semibold">PropTech Builders</h3>
+                  <blockquote className="mb-4 italic text-muted-foreground">
+                    "We flag OZ eligibility inside our deal-flow bot."
+                  </blockquote>
+                  <p className="text-sm text-muted-foreground">
+                    PropTech platforms embed OZ-MCP to automatically flag opportunity zone 
+                    properties in their deal sourcing and analysis tools.
+                  </p>
+                </CardContent>
+              </Card>
             </motion.div>
           </div>
         </div>

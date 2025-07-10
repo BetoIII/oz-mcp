@@ -3,6 +3,7 @@
 import { useEffect, useState, Suspense, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { Button } from '@/components/ui/button';
 
 // Force dynamic rendering since this page handles OAuth callbacks
 export const dynamic = 'force-dynamic';
@@ -13,16 +14,42 @@ function OAuthCallbackContent() {
   const [tokenResponse, setTokenResponse] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState('API key copied to clipboard!');
   const processingRef = useRef(false);
 
-  const copyToClipboard = async (text: string) => {
+  const copyToClipboard = async (text: string, message?: string) => {
     try {
       await navigator.clipboard.writeText(text);
+      if (message) {
+        setToastMessage(message);
+      }
       setShowToast(true);
       setTimeout(() => setShowToast(false), 3000);
     } catch (err) {
       console.error('Failed to copy text: ', err);
     }
+  };
+
+  const copyClaudeConfig = async () => {
+    const config = {
+      mcpServers: {
+        "existing-server": {
+          // "... your existing servers"
+        },
+        "Opportunity Zone MCP": {
+          command: "npx",
+          args: [
+            "-y",
+            "mcp-remote",
+            `${window.location.origin}/mcp/sse`,
+            "--header",
+            `Authorization: Bearer ${tokenResponse?.access_token}`
+          ]
+        }
+      }
+    };
+    
+    await copyToClipboard(JSON.stringify(config, null, 2), 'Claude MCP config copied to clipboard!');
   };
 
   useEffect(() => {
@@ -183,18 +210,16 @@ function OAuthCallbackContent() {
           </div>
           
           <div className="space-y-3">
-            <Link 
-              href="/docs/oauth-flow" 
-              className="w-full bg-blue-600 text-white py-3 px-6 rounded-xl hover:bg-blue-700 transition-colors font-medium inline-flex items-center justify-center"
-            >
-              View Documentation
-            </Link>
-            <Link 
-              href="/playground" 
-              className="w-full bg-gray-100 text-gray-700 py-3 px-6 rounded-xl hover:bg-gray-200 transition-colors font-medium inline-flex items-center justify-center"
-            >
-              Try Again
-            </Link>
+            <Button asChild variant="default" size="lg" className="w-full">
+              <Link href="/docs">
+                View Documentation
+              </Link>
+            </Button>
+            <Button asChild variant="outline" size="lg" className="w-full">
+              <Link href="/playground">
+                Try Again
+              </Link>
+            </Button>
           </div>
         </div>
       </div>
@@ -210,7 +235,7 @@ function OAuthCallbackContent() {
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
-            <span>API key copied to clipboard!</span>
+            <span>{toastMessage}</span>
           </div>
         )}
         
@@ -237,13 +262,13 @@ function OAuthCallbackContent() {
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-gray-600">Expires In:</span>
-                  <code className="text-gray-800 bg-white px-3 py-1 rounded border">1 year</code>
+                  <code className="text-gray-800 bg-white px-3 py-1 rounded border">1 month</code>
                 </div>
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-gray-600">API Key:</span>
                     <button
-                      onClick={() => copyToClipboard(tokenResponse?.access_token || '')}
+                      onClick={() => copyToClipboard(tokenResponse?.access_token || '', 'API key copied to clipboard!')}
                       className="flex items-center space-x-2 text-blue-600 hover:text-blue-700 transition-colors"
                       title="Copy to clipboard"
                     >
@@ -273,33 +298,82 @@ function OAuthCallbackContent() {
                   <div className="w-2 h-2 bg-blue-600 rounded-full mt-2"></div>
                   <span>Include it in the Authorization header as: <code className="bg-blue-100 px-2 py-1 rounded text-xs font-mono">Bearer {tokenResponse?.access_token?.substring(0, 16)}...</code></span>
                 </li>
-                <li className="flex items-start space-x-2">
-                  <div className="w-2 h-2 bg-blue-600 rounded-full mt-2"></div>
-                  <span>The API key will expire in 1 year</span>
-                </li>
+                
               </ul>
+            </div>
+
+            {/* Cloud Config Preview */}
+            <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-semibold text-slate-900">Claude MCP Configuration</h3>
+                <button
+                  onClick={() => {
+                    const config = {
+                      mcpServers: {
+                        "existing-server": {
+                          // "... your existing servers"
+                        },
+                        "Opportunity Zone MCP": {
+                          command: "npx",
+                          args: [
+                            "-y",
+                            "mcp-remote",
+                            `${window.location.origin}/mcp/sse`,
+                            "--header",
+                            `Authorization: Bearer ${tokenResponse?.access_token}`
+                          ]
+                        }
+                      }
+                    };
+                    copyToClipboard(JSON.stringify(config, null, 2), 'Claude MCP config copied to clipboard!');
+                  }}
+                  className="flex items-center justify-center w-7 h-7 text-slate-500 hover:text-slate-700 hover:bg-slate-200 rounded transition-colors"
+                  title="Copy configuration"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                </button>
+              </div>
+              <div className="bg-gray-900 text-green-400 p-4 rounded-lg overflow-x-auto">
+                <pre className="text-sm font-mono">{`{
+  "mcpServers": {
+    "existing-server": {
+      // ... your existing servers
+    },
+    "Opportunity Zone MCP": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-remote",
+        "${window.location.origin}/mcp/sse",
+        "--header",
+        "Authorization: Bearer `}<span className="text-gray-500">{'*'.repeat(32)}</span>{`"
+      ]
+    }
+  }
+}`}</pre>
+              </div>
+              <p className="text-xs text-slate-600 mt-2">
+                Copy this configuration object to your Claude desktop app's MCP settings file. Click the copy icon to get the complete config with your API key.
+              </p>
             </div>
           </div>
 
           <div className="mt-8 flex flex-col sm:flex-row gap-4">
-            <Link 
-              href="/dashboard" 
-              className="flex-1 bg-blue-600 text-white py-3 px-6 rounded-xl hover:bg-blue-700 transition-colors font-medium text-center"
+            <Button 
+              onClick={copyClaudeConfig}
+              variant="default"
+              size="lg"
+              className="flex-1"
             >
-              Return to Dashboard
-            </Link>
-            <Link 
-              href="/playground" 
-              className="flex-1 bg-gray-100 text-gray-700 py-3 px-6 rounded-xl hover:bg-gray-200 transition-colors font-medium text-center"
-            >
-              Test API in Playground
-            </Link>
-            <Link 
-              href="/docs/oauth-flow" 
-              className="flex-1 bg-gray-100 text-gray-700 py-3 px-6 rounded-xl hover:bg-gray-200 transition-colors font-medium text-center"
-            >
-              View Documentation
-            </Link>
+              Copy Claude Config
+            </Button>
+            <Button asChild variant="outline" size="lg" className="flex-1">
+              <Link href="/playground">
+                Test API in Playground
+              </Link>
+            </Button>
           </div>
         </div>
 

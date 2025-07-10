@@ -11,8 +11,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { Progress } from '@/components/ui/progress';
 import { UserAvatar } from '@/components/ui/user-avatar';
-import { Copy, ExternalLink, Key, Trash2, User, Shield, Clock, Database, Plus } from 'lucide-react';
+import { Copy, ExternalLink, Key, Trash2, User, Shield, Clock, Database, Plus, AlertTriangle, Settings } from 'lucide-react';
 import { config } from '@/lib/utils';
 import { Footer } from "@/components/Footer"
 import { DashboardClient } from './DashboardClient';
@@ -53,6 +54,17 @@ export default async function DashboardPage() {
     orderBy: { createdAt: 'desc' }
   });
 
+  // Get user usage information
+  const userWithUsage = await prisma.user.findUnique({
+    where: { id: session.user!.id },
+    select: {
+      monthlyUsageCount: true,
+      monthlyUsageLimit: true,
+      usagePeriodStart: true,
+      lastApiUsedAt: true,
+    },
+  });
+
   async function createClient(formData: FormData) {
     'use server';
     
@@ -66,7 +78,7 @@ export default async function DashboardPage() {
 
     // Use default callback URLs for the OAuth flow
     const defaultRedirectUris = [
-      `${process.env.NEXTAUTH_URL || 'https://oz-mcp.vercel.app'}/oauth/callback`,
+      `${config.baseUrl}/oauth/callback`,
       'http://localhost:3000/callback'
     ];
     
@@ -185,6 +197,39 @@ export default async function DashboardPage() {
     redirect('/dashboard');
   }
 
+  async function updateClientRedirectUris(formData: FormData) {
+    'use server';
+    
+    const session = await requireAuth();
+    const clientId = formData.get('clientId') as string;
+    
+    const client = await prisma.client.findFirst({
+      where: {
+        id: clientId,
+        userId: session.user!.id
+      }
+    });
+
+    if (!client) {
+      throw new Error('Client not found or unauthorized');
+    }
+
+    // Update redirect URIs to use current environment
+    const updatedRedirectUris = [
+      `${config.baseUrl}/oauth/callback`,
+      'http://localhost:3000/callback'
+    ];
+
+    await prisma.client.update({
+      where: { id: clientId },
+      data: {
+        redirectUris: updatedRedirectUris
+      }
+    });
+
+    redirect('/dashboard');
+  }
+
   // Determine the callback URL based on environment
   const callbackUrl = `${config.baseUrl}/oauth/callback`;
 
@@ -245,7 +290,7 @@ export default async function DashboardPage() {
                       required
                     />
                   </div>
-                  <Button type="submit" className="w-full">
+                  <Button type="submit" className="w-full" variant="default">
                     Create Client
                   </Button>
                 </form>
@@ -297,13 +342,49 @@ export default async function DashboardPage() {
                             </div>
                           </div>
 
+                          {/* Callback URI Section - Development Only */}
+                          {config.isDevelopment && (
+                            <div className="space-y-2">
+                              <Label className="text-xs text-slate-500">CALLBACK URI</Label>
+                              <div className="flex items-center space-x-2">
+                                <code className="text-xs bg-slate-100 px-2 py-1 rounded flex-1 font-mono">
+                                  {client.redirectUris[0]}
+                                </code>
+                                <Button size="sm" variant="outline" className="h-6 w-6 p-0">
+                                  <Copy className="h-3 w-3" />
+                                </Button>
+                              </div>
+                              {client.redirectUris[0]?.includes('oz-mcp.vercel.app') && (
+                                <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded text-xs text-amber-700">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center space-x-1">
+                                      <AlertTriangle className="h-3 w-3" />
+                                      <span className="font-medium">Local Development Issue Detected</span>
+                                    </div>
+                                    <form action={updateClientRedirectUris} className="inline">
+                                      <input type="hidden" name="clientId" value={client.id} />
+                                      <Button size="sm" variant="outline" className="h-6 text-xs bg-white hover:bg-gray-50">
+                                        <Settings className="h-3 w-3 mr-1" />
+                                        Fix Callback URI
+                                      </Button>
+                                    </form>
+                                  </div>
+                                  <p className="mt-1">
+                                    This client's callback URI points to production. When creating API keys locally, 
+                                    you'll be redirected to production. Click "Fix Callback URI" to update for local development.
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
                           {/* API Keys Section */}
                           <div className="pt-4 border-t border-slate-200">
                             <div className="flex items-center justify-between mb-3">
                               <Label className="text-sm font-medium text-slate-700">API Keys</Label>
                               <form action={createApiKey}>
                                 <input type="hidden" name="clientId" value={client.id} />
-                                <Button size="sm" variant="outline" className="h-8">
+                                <Button size="sm" variant="default" className="h-8">
                                   <Plus className="h-3 w-3 mr-1" />
                                   Create API Key
                                 </Button>
@@ -318,29 +399,79 @@ export default async function DashboardPage() {
                               </div>
                             ) : (
                               <div className="space-y-2">
-                                {client.accessTokens.map((token) => (
-                                  <div key={token.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
-                                    <div className="flex-1">
-                                      <div className="flex items-center space-x-2">
-                                        <code className="text-xs bg-slate-200 px-2 py-1 rounded font-mono">
-                                          {token.token.substring(0, 8)}...{token.token.substring(token.token.length - 8)}
-                                        </code>
-                                        <Button size="sm" variant="outline" className="h-6 w-6 p-0">
-                                          <Copy className="h-3 w-3" />
-                                        </Button>
+                                {client.accessTokens.map((token) => {
+                                  const isExpired = token.expiresAt < new Date();
+                                  // Calculate user usage information
+                                  const userUsage = userWithUsage?.monthlyUsageCount || 0;
+                                  const userLimit = userWithUsage?.monthlyUsageLimit || 18;
+                                  const usagePercentage = (userUsage / userLimit) * 100;
+                                  const isNearLimit = usagePercentage > 80;
+                                  const isAtLimit = userUsage >= userLimit;
+                                  
+                                  // Calculate days until usage reset
+                                  const now = new Date();
+                                  const resetDate = userWithUsage?.usagePeriodStart 
+                                    ? new Date(userWithUsage.usagePeriodStart.getTime() + 30 * 24 * 60 * 60 * 1000)
+                                    : null;
+                                  const daysUntilReset = resetDate 
+                                    ? Math.ceil((resetDate.getTime() - now.getTime()) / (24 * 60 * 60 * 1000))
+                                    : 0;
+                                  
+                                  return (
+                                    <div key={token.id} className="p-3 bg-slate-50 rounded-lg border-l-4 border-l-blue-500">
+                                      <div className="flex items-start justify-between">
+                                        <div className="flex-1">
+                                          <div className="flex items-center space-x-2 mb-2">
+                                            <code className="text-xs bg-slate-200 px-2 py-1 rounded font-mono">
+                                              {token.token.substring(0, 8)}...{token.token.substring(token.token.length - 8)}
+                                            </code>
+                                            <Button size="sm" variant="outline" className="h-6 w-6 p-0">
+                                              <Copy className="h-3 w-3" />
+                                            </Button>
+                                            {isExpired && (
+                                              <Badge variant="destructive" className="text-xs">
+                                                Expired
+                                              </Badge>
+                                            )}
+                                            {!isExpired && isAtLimit && (
+                                              <Badge variant="destructive" className="text-xs">
+                                                <AlertTriangle className="h-3 w-3 mr-1" />
+                                                Monthly Limit Reached
+                                              </Badge>
+                                            )}
+                                            {!isExpired && !isAtLimit && isNearLimit && (
+                                              <Badge variant="outline" className="text-xs text-orange-600 border-orange-600">
+                                                <AlertTriangle className="h-3 w-3 mr-1" />
+                                                Near Monthly Limit
+                                              </Badge>
+                                            )}
+                                          </div>
+                                          
+                                          <div className="grid grid-cols-2 gap-4 text-xs text-slate-500">
+                                            <div>
+                                              <span className="block">API Key Created</span>
+                                              <span className="font-medium">
+                                                {new Date(token.createdAt).toLocaleDateString()}
+                                              </span>
+                                            </div>
+                                            <div>
+                                              <span className="block">API Key Expires</span>
+                                              <span className={`font-medium ${isExpired ? 'text-red-600' : ''}`}>
+                                                {new Date(token.expiresAt).toLocaleDateString()}
+                                              </span>
+                                            </div>
+                                          </div>
+                                        </div>
+                                        <form action={deleteApiKey}>
+                                          <input type="hidden" name="tokenId" value={token.id} />
+                                          <Button size="sm" variant="outline" className="h-7 w-7 p-0 text-red-600 hover:bg-red-50">
+                                            <Trash2 className="h-3 w-3" />
+                                          </Button>
+                                        </form>
                                       </div>
-                                      <p className="text-xs text-slate-500 mt-1">
-                                        Created {new Date(token.createdAt).toLocaleDateString()}
-                                      </p>
                                     </div>
-                                    <form action={deleteApiKey}>
-                                      <input type="hidden" name="tokenId" value={token.id} />
-                                      <Button size="sm" variant="outline" className="h-7 w-7 p-0 text-red-600 hover:bg-red-50">
-                                        <Trash2 className="h-3 w-3" />
-                                      </Button>
-                                    </form>
-                                  </div>
-                                ))}
+                                  )
+                                })}
                               </div>
                             )}
                           </div>
@@ -409,22 +540,57 @@ export default async function DashboardPage() {
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    <div className="text-center">
-                      <p className="text-2xl font-bold text-blue-600">{userTokens.length}</p>
-                      <p className="text-sm text-slate-500">Total API Keys</p>
+                    <div className="grid grid-cols-2 gap-2 text-center">
+                      <div>
+                        <p className="text-lg font-bold text-blue-600">{userTokens.length}</p>
+                        <p className="text-xs text-slate-500">Total Keys</p>
+                      </div>
+                      <div>
+                        <p className="text-lg font-bold text-green-600">
+                          {userTokens.filter(token => token.expiresAt > new Date()).length}
+                        </p>
+                        <p className="text-xs text-slate-500">Active</p>
+                      </div>
                     </div>
+                    
+                    <Separator />
+                    
                     <div className="space-y-2">
-                      {Object.entries(
-                        userTokens.reduce((acc, token) => {
-                          acc[token.client.name] = (acc[token.client.name] || 0) + 1;
-                          return acc;
-                        }, {} as Record<string, number>)
-                      ).map(([clientName, count]) => (
-                        <div key={clientName} className="flex justify-between text-sm">
-                          <span className="text-slate-600">{clientName}</span>
-                          <span className="font-medium">{count}</span>
+                      <h4 className="text-sm font-medium text-slate-700">Your Monthly Usage</h4>
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-xs">
+                          <span className="text-slate-600">Used this month</span>
+                          <span className="font-medium">
+                            {userWithUsage?.monthlyUsageCount || 0}/{userWithUsage?.monthlyUsageLimit || 18} searches
+                          </span>
                         </div>
-                      ))}
+                        <Progress 
+                          value={userWithUsage ? (userWithUsage.monthlyUsageCount / userWithUsage.monthlyUsageLimit) * 100 : 0} 
+                          className="h-2"
+                        />
+                        <div className="flex justify-between text-xs text-slate-500">
+                          <span>
+                            Last used: {userWithUsage?.lastApiUsedAt 
+                              ? new Date(userWithUsage.lastApiUsedAt).toLocaleDateString()
+                              : 'Never'
+                            }
+                          </span>
+                          <span>
+                            {userWithUsage?.usagePeriodStart 
+                              ? `Resets in ${Math.max(1, Math.ceil((30 * 24 * 60 * 60 * 1000 - (new Date().getTime() - userWithUsage.usagePeriodStart.getTime())) / (24 * 60 * 60 * 1000)))} days`
+                              : 'No usage yet'
+                            }
+                          </span>
+                        </div>
+                      </div>
+                      
+                      {userTokens.filter(token => token.expiresAt <= new Date()).length > 0 && (
+                        <div className="pt-2 border-t border-slate-200">
+                          <p className="text-xs text-red-600">
+                            {userTokens.filter(token => token.expiresAt <= new Date()).length} expired key(s)
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}

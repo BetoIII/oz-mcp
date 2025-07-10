@@ -6,6 +6,24 @@ import { geocodingService } from '@/lib/services/geocoding';
 // Temporary token usage tracking (in-memory for simplicity)
 const tempTokenUsage = new Map<string, number>();
 
+// Helper function to check if user has exceeded monthly limit
+function hasUserExceededMonthlyLimit(user: any): boolean {
+  // If no usage period started, they're within limits
+  if (!user.usagePeriodStart) return false;
+  
+  // Check if 30 days have passed since usage period start
+  const now = new Date();
+  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  
+  // If usage period started more than 30 days ago, reset is needed (will be handled in increment)
+  if (user.usagePeriodStart < thirtyDaysAgo) {
+    return false; 
+  }
+  
+  // Check current usage against limit
+  return user.monthlyUsageCount >= user.monthlyUsageLimit;
+}
+
 // Authentication helper
 async function authenticateRequest(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
@@ -23,6 +41,7 @@ async function authenticateRequest(request: NextRequest) {
   try {
     const accessToken = await prisma.accessToken.findUnique({
       where: { token },
+      include: { user: true }, // Include user data for usage checking
     });
 
     if (!accessToken) {
@@ -43,7 +62,12 @@ async function authenticateRequest(request: NextRequest) {
       return { ...accessToken, usageCount: currentUsage, isTemporary: true, token };
     }
 
-    return accessToken;
+    // Check if this is a regular API key and validate user's monthly usage limit
+    if (hasUserExceededMonthlyLimit(accessToken.user)) {
+      return { ...accessToken, usageExceeded: true, isRegularKey: true };
+    }
+
+    return { ...accessToken, isRegularKey: true };
   } catch (e) {
     console.error('Error validating token:', e);
     return null;
@@ -58,6 +82,40 @@ function incrementTempTokenUsage(token: string): void {
   }
 }
 
+// Helper function to increment user's monthly usage
+async function incrementUserUsage(userId: string): Promise<void> {
+  try {
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) return;
+    
+    const now = new Date();
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    
+    // Reset if period expired or no period started
+    if (!user.usagePeriodStart || user.usagePeriodStart < thirtyDaysAgo) {
+      await prisma.user.update({
+        where: { id: userId },
+        data: {
+          monthlyUsageCount: 1, // Start fresh with this usage
+          usagePeriodStart: now,
+          lastApiUsedAt: now,
+        },
+      });
+    } else {
+      // Increment existing usage
+      await prisma.user.update({
+        where: { id: userId },
+        data: {
+          monthlyUsageCount: { increment: 1 },
+          lastApiUsedAt: now,
+        },
+      });
+    }
+  } catch (error) {
+    console.error('Error incrementing user usage:', error);
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     // Authenticate the request
@@ -66,13 +124,28 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Check if temporary token usage is exceeded
+    // Check if token usage is exceeded
     if ((accessToken as any).usageExceeded) {
-      return NextResponse.json({ 
-        error: 'Temporary API key usage limit exceeded',
-        message: 'You have used all 3 requests for this temporary API key. Please create a new temporary key or signup for a free account.',
-        code: 'TEMP_KEY_LIMIT_EXCEEDED'
-      }, { status: 429 });
+      if ((accessToken as any).isTemporary) {
+        return NextResponse.json({ 
+          error: 'Temporary API key usage limit exceeded',
+          message: 'You have used all 3 requests for this temporary API key. Please create a new temporary key or signup for a free account.',
+          code: 'TEMP_KEY_LIMIT_EXCEEDED'
+        }, { status: 429 });
+      } else {
+        // Calculate days until reset for user messaging
+        const user = (accessToken as any).user;
+        const now = new Date();
+        const daysUntilReset = user.usagePeriodStart 
+          ? Math.ceil((30 * 24 * 60 * 60 * 1000 - (now.getTime() - user.usagePeriodStart.getTime())) / (24 * 60 * 60 * 1000))
+          : 0;
+        
+        return NextResponse.json({ 
+          error: 'Monthly usage limit exceeded',
+          message: `You have used all ${user.monthlyUsageLimit} searches for this month. Usage will reset in ${Math.max(1, daysUntilReset)} days.`,
+          code: 'MONTHLY_LIMIT_EXCEEDED'
+        }, { status: 429 });
+      }
     }
 
     // Parse the request body
@@ -329,9 +402,13 @@ export async function POST(request: NextRequest) {
         }, { status: 400 });
     }
 
-    // Only increment temporary token usage if operation was successful and should be counted
-    if (shouldIncrementUsage && (accessToken as any).isTemporary) {
-      incrementTempTokenUsage((accessToken as any).token);
+    // Only increment token usage if operation was successful and should be counted
+    if (shouldIncrementUsage) {
+      if ((accessToken as any).isTemporary) {
+        incrementTempTokenUsage((accessToken as any).token);
+      } else if ((accessToken as any).isRegularKey) {
+        await incrementUserUsage(accessToken.userId);
+      }
     }
 
     return NextResponse.json({

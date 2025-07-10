@@ -74,8 +74,8 @@ export function Navbar({ variant = 'default', title, icon }: NavbarProps) {
   const navLinks = [
     { href: '/docs', label: 'Docs', showAlways: true },
     { href: '/playground', label: 'Playground', showAlways: true },
-    { href: 'https://x.com/BetoIII', label: 'Twitter', showAlways: true, external: true },
     { href: '/dashboard', label: 'Dashboard', requiresAuth: true },
+    { href: 'https://x.com/BetoIII', label: 'Twitter', showAlways: true, external: true },
   ]
 
   const filteredNavLinks = navLinks.filter(link => {

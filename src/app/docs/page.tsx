@@ -31,17 +31,11 @@ export default function DocsPage() {
           <div className="mb-8">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h1 className="text-3xl font-bold text-gray-900">Opportunity Zone MCP Server</h1>
+                <h1 className="text-3xl font-bold text-gray-900">Opportunity Zone MCP Server Docs</h1>
                 <p className="text-gray-600 mt-1">
                   Complete documentation for integrating with the Opportunity Zone MCP server
                 </p>
               </div>
-              <Link href="/">
-                <Button variant="outline" size="sm">
-                  <ArrowLeft className="h-4 w-4 mr-2" />
-                  Back to Home
-                </Button>
-              </Link>
             </div>
           </div>
 
@@ -425,10 +419,10 @@ export default function DocsPage() {
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Link href="/dashboard">
+                <Link href="/docs/claude">
                   <Button variant="outline" className="w-full justify-start">
                     <Settings className="h-4 w-4 mr-2" />
-                    Developer Dashboard
+                    Claude Setup
                   </Button>
                 </Link>
                 <Link href="/playground">

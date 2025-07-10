@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { OpportunityZoneService } from '@/lib/services/opportunity-zones'
 import { geocodingService } from '@/lib/services/geocoding'
 import { cookies } from 'next/headers'
+import { prisma } from '@/app/prisma'
 
 interface SearchTracker {
   searchCount: number
@@ -13,7 +14,120 @@ const FREE_SEARCH_LIMIT = 3
 const LOCKOUT_DURATION_MS = 7 * 24 * 60 * 60 * 1000 // 1 week
 const COOKIE_NAME = 'oz_search_tracker'
 
-// Function to validate search and increment counter only after successful geocoding
+// Temporary token usage tracking (in-memory for simplicity)
+const tempTokenUsage = new Map<string, number>();
+
+// Helper function to check if user has exceeded monthly limit
+function hasUserExceededMonthlyLimit(user: any): boolean {
+  // If no usage period started, they're within limits
+  if (!user.usagePeriodStart) return false;
+  
+  // Check if 30 days have passed since usage period start
+  const now = new Date();
+  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  
+  // If usage period started more than 30 days ago, reset is needed (will be handled in increment)
+  if (user.usagePeriodStart < thirtyDaysAgo) {
+    return false; 
+  }
+  
+  // Check current usage against limit
+  return user.monthlyUsageCount >= user.monthlyUsageLimit;
+}
+
+// Authentication helper (for API key support)
+async function authenticateRequest(request: NextRequest) {
+  const authHeader = request.headers.get('authorization');
+  
+  if (!authHeader) {
+    return null;
+  }
+
+  const token = authHeader.split(' ')[1];
+  
+  if (!token) {
+    return null;
+  }
+
+  try {
+    const accessToken = await prisma.accessToken.findUnique({
+      where: { token },
+      include: { user: true }, // Include user data for usage checking
+    });
+
+    if (!accessToken) {
+      return null;
+    }
+
+    if (accessToken.expiresAt < new Date()) {
+      return null;
+    }
+
+    // Check if this is a temporary token and validate usage limit
+    if (token.startsWith('temp_')) {
+      const currentUsage = tempTokenUsage.get(token) || 0;
+      if (currentUsage >= 3) {
+        return { ...accessToken, usageExceeded: true };
+      }
+      // Don't increment here - only after successful operations
+      return { ...accessToken, usageCount: currentUsage, isTemporary: true, token };
+    }
+
+    // Check if this is a regular API key and validate user's monthly usage limit
+    if (hasUserExceededMonthlyLimit(accessToken.user)) {
+      return { ...accessToken, usageExceeded: true, isRegularKey: true };
+    }
+
+    return { ...accessToken, isRegularKey: true };
+  } catch (e) {
+    console.error('Error validating token:', e);
+    return null;
+  }
+}
+
+// Helper function to increment temporary token usage
+function incrementTempTokenUsage(token: string): void {
+  if (token.startsWith('temp_')) {
+    const currentUsage = tempTokenUsage.get(token) || 0;
+    tempTokenUsage.set(token, currentUsage + 1);
+  }
+}
+
+// Helper function to increment user's monthly usage
+async function incrementUserUsage(userId: string): Promise<void> {
+  try {
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) return;
+    
+    const now = new Date();
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    
+    // Reset if period expired or no period started
+    if (!user.usagePeriodStart || user.usagePeriodStart < thirtyDaysAgo) {
+      await prisma.user.update({
+        where: { id: userId },
+        data: {
+          monthlyUsageCount: 1, // Start fresh with this usage
+          usagePeriodStart: now,
+          lastApiUsedAt: now,
+        },
+      });
+    } else {
+      // Increment existing usage
+      await prisma.user.update({
+        where: { id: userId },
+        data: {
+          monthlyUsageCount: { increment: 1 },
+          lastApiUsedAt: now,
+        },
+      });
+    }
+  } catch (error) {
+    console.error('Error incrementing user usage:', error);
+  }
+}
+
+// Function to validate search and increment counter only after successful geocoding (for anonymous users)
 async function validateAndIncrementSearch() {
   const cookieStore = await cookies()
   const existingCookie = cookieStore.get(COOKIE_NAME)
@@ -134,28 +248,62 @@ export async function GET(request: NextRequest) {
   let longitude: number;
   let geocodedAddress: string;
   let validationResult: any = null;
+  let shouldIncrementUsage = false;
+
+  // Check for API key authentication first
+  const accessToken = await authenticateRequest(request);
+  
+  // If API key is provided, check its validity and usage limits
+  if (accessToken) {
+    // Check if token usage is exceeded
+    if ((accessToken as any).usageExceeded) {
+      if ((accessToken as any).isTemporary) {
+        return NextResponse.json({ 
+          error: 'Temporary API key usage limit exceeded',
+          message: 'You have used all 3 requests for this temporary API key. Please create a new temporary key or signup for a free account.',
+          code: 'TEMP_KEY_LIMIT_EXCEEDED'
+        }, { status: 429 });
+      } else {
+        // Calculate days until reset for user messaging
+        const user = (accessToken as any).user;
+        const now = new Date();
+        const daysUntilReset = user.usagePeriodStart 
+          ? Math.ceil((30 * 24 * 60 * 60 * 1000 - (now.getTime() - user.usagePeriodStart.getTime())) / (24 * 60 * 60 * 1000))
+          : 0;
+        
+        return NextResponse.json({ 
+          error: 'Monthly usage limit exceeded',
+          message: `You have used all ${user.monthlyUsageLimit} searches for this month. Usage will reset in ${Math.max(1, daysUntilReset)} days.`,
+          code: 'MONTHLY_LIMIT_EXCEEDED'
+        }, { status: 429 });
+      }
+    }
+  }
 
   try {
-    // If address is provided, validate search and increment counter BEFORE performing search
+    // If address is provided, handle geocoding and usage validation
     if (address) {
-      validationResult = await validateAndIncrementSearch()
-      
-      // Check if search is allowed
-      if (!validationResult.allowed) {
-        return NextResponse.json(
-          { 
-            error: 'Search limit reached',
-            message: validationResult.message,
-            searchCount: validationResult.searchCount
-          },
-          { status: 429 }
-        )
+      // For anonymous users (no API key), validate using cookie tracking
+      if (!accessToken) {
+        validationResult = await validateAndIncrementSearch()
+        
+        // Check if search is allowed for anonymous users
+        if (!validationResult.allowed) {
+          return NextResponse.json(
+            { 
+              error: 'Search limit reached',
+              message: validationResult.message,
+              searchCount: validationResult.searchCount
+            },
+            { status: 429 }
+          )
+        }
       }
       
       // Attempt geocoding
       const geocodeResult = await geocodingService.geocodeAddress(address);
       
-      // Handle address not found gracefully
+      // Handle address not found gracefully - don't increment usage
       if (geocodeResult.notFound) {
         return NextResponse.json({
           addressNotFound: true,
@@ -198,6 +346,9 @@ export async function GET(request: NextRequest) {
 
     const result = await service.checkPoint(latitude, longitude)
     const queryTime = Date.now() - startTime
+    
+    // Only increment usage after successful operation
+    shouldIncrementUsage = true
 
     // If MCP format is requested, return MCP-style response
     if (format === 'mcp') {
@@ -254,7 +405,7 @@ export async function GET(request: NextRequest) {
         }
       }, { status: 200 });
 
-      // Save the updated tracker to cookie if we have validation result
+      // Save the updated tracker to cookie if we have validation result (for anonymous users)
       if (validationResult && validationResult.tracker) {
         mcpResponse.cookies.set(COOKIE_NAME, JSON.stringify(validationResult.tracker), {
           maxAge: LOCKOUT_DURATION_MS / 1000,
@@ -263,6 +414,15 @@ export async function GET(request: NextRequest) {
           sameSite: 'lax',
           path: '/'
         })
+      }
+
+      // Increment usage for API key users after successful operation
+      if (accessToken && shouldIncrementUsage) {
+        if ((accessToken as any).isTemporary) {
+          incrementTempTokenUsage((accessToken as any).token);
+        } else if ((accessToken as any).isRegularKey) {
+          await incrementUserUsage(accessToken.userId);
+        }
       }
 
       return mcpResponse;
@@ -308,7 +468,7 @@ export async function GET(request: NextRequest) {
 
     const finalResponse = NextResponse.json(response, { status: 200 })
     
-    // Save the updated tracker to cookie if we have validation result
+    // Save the updated tracker to cookie if we have validation result (for anonymous users)
     if (validationResult && validationResult.tracker) {
       finalResponse.cookies.set(COOKIE_NAME, JSON.stringify(validationResult.tracker), {
         maxAge: LOCKOUT_DURATION_MS / 1000,
@@ -319,11 +479,22 @@ export async function GET(request: NextRequest) {
       })
     }
     
+    // Increment usage for API key users after successful operation
+    if (accessToken && shouldIncrementUsage) {
+      if ((accessToken as any).isTemporary) {
+        incrementTempTokenUsage((accessToken as any).token);
+      } else if ((accessToken as any).isRegularKey) {
+        await incrementUserUsage(accessToken.userId);
+      }
+    }
+    
     return finalResponse
   } catch (error) {
     const queryTime = Date.now() - (Date.now() - 100) // Approximate timing for error case
     
     console.error('Error checking opportunity zone:', error)
+    
+    // Don't increment usage on errors
     
     return NextResponse.json(
       { 

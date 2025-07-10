@@ -30,6 +30,12 @@ export function formatNumber(num: number) {
 function getBaseUrl() {
   // On the server, we can use environment variables
   if (typeof window === 'undefined') {
+    // In development, always use localhost regardless of NEXTAUTH_URL
+    if (process.env.NODE_ENV === 'development') {
+      return 'http://localhost:3000';
+    }
+    
+    // In production, use environment variables
     if (process.env.NEXTAUTH_URL) return process.env.NEXTAUTH_URL;
     if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
     return 'http://localhost:3000';
