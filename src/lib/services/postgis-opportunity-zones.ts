@@ -86,6 +86,8 @@ export class PostGISOpportunityZoneService {
     }
 
     try {
+      log("info", `🔍 Checking coordinates (${lat}, ${lon}) against PostGIS opportunity zones`);
+      
       // Use the optimized PostGIS function for two-stage filtering
       const result = await prisma.$queryRaw<{ geoid: string }[]>`
         SELECT * FROM check_point_in_opportunity_zone_fast(${lat}, ${lon})
@@ -94,9 +96,11 @@ export class PostGISOpportunityZoneService {
       const isInZone = result.length > 0
       
       if (isInZone) {
-        log("success", `🎯 Point (${lat}, ${lon}) found in opportunity zone: ${result[0].geoid}`)
+        log("success", `🎯 Point (${lat}, ${lon}) found in opportunity zone: ${result[0].geoid}`);
+        log("success", `✅ RESULT: YES - In Opportunity Zone`);
       } else {
-        log("info", `📍 Point (${lat}, ${lon}) is not in any opportunity zone`)
+        log("success", `📍 Point (${lat}, ${lon}) is not in any opportunity zone`);
+        log("success", `❌ RESULT: NO - Not in Opportunity Zone`);
       }
 
       return {

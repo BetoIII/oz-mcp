@@ -41,11 +41,11 @@ export class OpportunityZoneService {
   }> {
     // Use PostGIS-optimized query
     try {
-      log("info", "🚀 Attempting PostGIS-optimized query...")
+      log("info", "🚀 Attempting PostGIS-optimized query...");
       const postGISResult = await this.postGISService.checkPointFast(lat, lon, log)
       
       if (postGISResult.method === 'postgis') {
-        log("success", `⚡ PostGIS query completed - method: ${postGISResult.method}`)
+        log("success", `⚡ PostGIS query completed successfully - method: ${postGISResult.method}`);
         const metadata = await this.postGISService.getMetadata(log)
         
         return {

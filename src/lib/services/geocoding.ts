@@ -101,6 +101,7 @@ export class GeocodingService {
   private async geocodeWithAPI(address: string, log: LogFn = defaultLog): Promise<GeocodingResult> {
     const apiKey = process.env.GEOCODING_API_KEY
     if (!apiKey) {
+      log("error", "❌ Geocoding API key not configured");
       throw new Error('Geocoding API key not configured')
     }
 
@@ -108,6 +109,7 @@ export class GeocodingService {
     const url = `https://geocode.maps.co/search?q=${encodeURIComponent(address)}&api_key=${apiKey}`
     
     log("info", `🌍 Geocoding address: ${address}`)
+    log("info", `🔗 Geocoding request initiated`)
 
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), this.REQUEST_TIMEOUT)
@@ -121,12 +123,16 @@ export class GeocodingService {
       })
 
       if (!response.ok) {
+        const errorMessage = `❌ Geocoding failed: ${response.status} ${response.statusText}`;
+        log("error", errorMessage);
         throw new Error(`Geocoding API error: ${response.status} ${response.statusText}`)
       }
 
       const data = await response.json()
+      log("info", `📊 Geocoding returned ${Array.isArray(data) ? data.length : 0} results`);
 
       if (!Array.isArray(data) || data.length === 0) {
+        log("warning", "⚠️ No geocoding results found for address");
         return {
           latitude: 0,
           longitude: 0,
@@ -138,6 +144,7 @@ export class GeocodingService {
       const result = data[0]
       
       if (!result.lat || !result.lon) {
+        log("error", "❌ Missing coordinates in geocoding result");
         throw new Error('Invalid geocoding response: missing coordinates')
       }
 
@@ -147,11 +154,20 @@ export class GeocodingService {
         displayName: result.display_name || address
       }
 
+      // Create a sanitized display name like in the opportunity-zone-search repo
+      const sanitizedDisplayName = result.display_name ? 
+        result.display_name.split(',').slice(0, -2).join(',') : address;
+
       log("success", `✅ Geocoded "${address}" to ${geocodingResult.latitude}, ${geocodingResult.longitude}`)
+      log("info", `📍 Using coordinates for "${sanitizedDisplayName}"`);
       
-      return geocodingResult
+      return {
+        ...geocodingResult,
+        displayName: sanitizedDisplayName
+      }
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
+        log("error", `❌ Geocoding request timed out after ${this.REQUEST_TIMEOUT/1000} seconds`);
         throw new Error(`Geocoding request timed out after ${this.REQUEST_TIMEOUT/1000} seconds`)
       }
       throw error
