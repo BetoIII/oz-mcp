@@ -3,6 +3,7 @@
 import { useEffect, useState, Suspense, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { Button } from '@/components/ui/button';
 
 // Force dynamic rendering since this page handles OAuth callbacks
 export const dynamic = 'force-dynamic';
@@ -209,18 +210,16 @@ function OAuthCallbackContent() {
           </div>
           
           <div className="space-y-3">
-            <Link 
-              href="/docs" 
-              className="w-full bg-blue-600 text-white py-3 px-6 rounded-xl hover:bg-blue-700 transition-colors font-medium inline-flex items-center justify-center"
-            >
-              View Documentation
-            </Link>
-            <Link 
-              href="/playground" 
-              className="w-full bg-gray-100 text-gray-700 py-3 px-6 rounded-xl hover:bg-gray-200 transition-colors font-medium inline-flex items-center justify-center"
-            >
-              Try Again
-            </Link>
+            <Button asChild variant="default" size="lg" className="w-full">
+              <Link href="/docs">
+                View Documentation
+              </Link>
+            </Button>
+            <Button asChild variant="outline" size="lg" className="w-full">
+              <Link href="/playground">
+                Try Again
+              </Link>
+            </Button>
           </div>
         </div>
       </div>
@@ -299,10 +298,7 @@ function OAuthCallbackContent() {
                   <div className="w-2 h-2 bg-blue-600 rounded-full mt-2"></div>
                   <span>Include it in the Authorization header as: <code className="bg-blue-100 px-2 py-1 rounded text-xs font-mono">Bearer {tokenResponse?.access_token?.substring(0, 16)}...</code></span>
                 </li>
-                <li className="flex items-start space-x-2">
-                  <div className="w-2 h-2 bg-blue-600 rounded-full mt-2"></div>
-                  <span>The API key will expire in 1 month</span>
-                </li>
+                
               </ul>
             </div>
 
@@ -365,24 +361,19 @@ function OAuthCallbackContent() {
           </div>
 
           <div className="mt-8 flex flex-col sm:flex-row gap-4">
-            <button 
+            <Button 
               onClick={copyClaudeConfig}
-              className="flex-1 bg-blue-600 text-white py-3 px-6 rounded-xl hover:bg-blue-700 transition-colors font-medium text-center"
+              variant="default"
+              size="lg"
+              className="flex-1"
             >
               Copy Claude Config
-            </button>
-            <Link 
-              href="/playground" 
-              className="flex-1 bg-gray-100 text-gray-700 py-3 px-6 rounded-xl hover:bg-gray-200 transition-colors font-medium text-center"
-            >
-              Test API in Playground
-            </Link>
-            <Link 
-              href="/docs" 
-              className="flex-1 bg-gray-100 text-gray-700 py-3 px-6 rounded-xl hover:bg-gray-200 transition-colors font-medium text-center"
-            >
-              View Documentation
-            </Link>
+            </Button>
+            <Button asChild variant="outline" size="lg" className="flex-1">
+              <Link href="/playground">
+                Test API in Playground
+              </Link>
+            </Button>
           </div>
         </div>
 

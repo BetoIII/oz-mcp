@@ -69,15 +69,15 @@ export default function ClaudeSetupPage() {
             <CardContent className="space-y-3">
               <div className="flex items-center gap-2">
                 <CheckCircle className="h-4 w-4 text-green-600" />
-                <span>Claude Desktop app installed (download from anthropic.com)</span>
+                <span className="text-sm">Claude Desktop app installed (download from anthropic.com)</span>
               </div>
               <div className="flex items-center gap-2">
                 <CheckCircle className="h-4 w-4 text-green-600" />
-                <span>Node.js and npm installed (from nodejs.org)</span>
+                <span className="text-sm">Node.js and npm installed (from nodejs.org)</span>
               </div>
               <div className="flex items-center gap-2">
                 <CheckCircle className="h-4 w-4 text-green-600" />
-                <span>Your Opportunity Zone API key (from the dashboard)</span>
+                <span className="text-sm">Your Opportunity Zone API key (from the dashboard)</span>
               </div>
             </CardContent>
           </Card>
@@ -134,10 +134,10 @@ export default function ClaudeSetupPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <p className="mb-3">Create or open the file <code className="bg-gray-100 px-2 py-1 rounded">claude_desktop_config.json</code> in the directory above.</p>
+                <p className="mb-3 text-sm text-gray-600">Create or open the file <code className="bg-gray-100 px-2 py-1 rounded">claude_desktop_config.json</code> in the directory above.</p>
                 
                 <div className="space-y-3">
-                  <h4 className="font-semibold">If the file doesn't exist, create it with:</h4>
+                  <h4 className="font-semibold text-sm">If the file doesn't exist, create it with:</h4>
                   <div className="bg-gray-900 text-green-400 p-4 rounded-lg overflow-x-auto">
                     <pre>{`{
   "mcpServers": {
@@ -157,7 +157,7 @@ export default function ClaudeSetupPage() {
                 </div>
 
                 <div className="space-y-3 mt-4">
-                  <h4 className="font-semibold">If the file already exists, add the Opportunity Zone MCP server:</h4>
+                  <h4 className="font-semibold text-sm">If the file already exists, add the Opportunity Zone MCP server:</h4>
                   <div className="bg-gray-900 text-green-400 p-4 rounded-lg overflow-x-auto">
                     <pre>{`{
   "mcpServers": {
@@ -200,10 +200,10 @@ export default function ClaudeSetupPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-3">
-                <p>Replace <code className="bg-gray-100 px-2 py-1 rounded">YOUR_API_KEY_HERE</code> with your actual API key from the dashboard.</p>
+                <p className="text-sm text-gray-600">Replace <code className="bg-gray-100 px-2 py-1 rounded">YOUR_API_KEY_HERE</code> with your actual API key from the dashboard.</p>
                 
                 <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg">
-                  <h4 className="font-semibold text-blue-800 mb-2">Example with real API key:</h4>
+                  <h4 className="font-semibold text-blue-800 mb-2 text-sm">Example with real API key:</h4>
                   <div className="bg-gray-900 text-green-400 p-3 rounded font-mono text-sm overflow-x-auto">
                     "Authorization: Bearer 0a02da4c5e9cff0f5762387c56f0d5f44e114dc2809c5ed75199f6ee01823f9c"
                   </div>
@@ -269,7 +269,7 @@ export default function ClaudeSetupPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-3">
-                <p>Try one of these test prompts in Claude:</p>
+                <p className="text-sm text-gray-600">Try one of these test prompts in Claude:</p>
                 
                 <div className="space-y-3">
                   <div className="bg-blue-50 border border-blue-200 p-3 rounded-lg">
@@ -317,7 +317,7 @@ export default function ClaudeSetupPage() {
             <CardContent className="space-y-4">
               <div className="space-y-4">
                 <div className="border-l-4 border-red-200 pl-4">
-                  <h4 className="font-semibold text-red-800">Claude doesn't recognize MCP commands</h4>
+                  <h4 className="font-semibold text-red-800 text-sm">Claude doesn't recognize MCP commands</h4>
                   <ul className="text-sm space-y-1 list-disc list-inside text-red-700 mt-2">
                     <li>Verify the configuration file syntax is valid JSON</li>
                     <li>Check that the file is saved in the correct location</li>
@@ -327,7 +327,7 @@ export default function ClaudeSetupPage() {
                 </div>
                 
                 <div className="border-l-4 border-yellow-200 pl-4">
-                  <h4 className="font-semibold text-yellow-800">API authentication errors</h4>
+                  <h4 className="font-semibold text-yellow-800 text-sm">API authentication errors</h4>
                   <ul className="text-sm space-y-1 list-disc list-inside text-yellow-700 mt-2">
                     <li>Double-check your API key is correct</li>
                     <li>Verify the API key hasn't expired</li>
@@ -337,7 +337,7 @@ export default function ClaudeSetupPage() {
                 </div>
                 
                 <div className="border-l-4 border-blue-200 pl-4">
-                  <h4 className="font-semibold text-blue-800">Network connection issues</h4>
+                  <h4 className="font-semibold text-blue-800 text-sm">Network connection issues</h4>
                   <ul className="text-sm space-y-1 list-disc list-inside text-blue-700 mt-2">
                     <li>Ensure you have a stable internet connection</li>
                     <li>Check if your firewall is blocking the connection</li>
@@ -360,7 +360,7 @@ export default function ClaudeSetupPage() {
             <CardContent className="space-y-4">
               <div className="grid md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <h4 className="font-semibold">Explore More Features:</h4>
+                  <h4 className="font-semibold text-sm">Explore More Features:</h4>
                   <ul className="text-sm space-y-1 list-disc list-inside text-gray-600">
                     <li>Geocode addresses to coordinates</li>
                     <li>Validate location searches</li>
@@ -370,7 +370,7 @@ export default function ClaudeSetupPage() {
                 </div>
                 
                 <div className="space-y-2">
-                  <h4 className="font-semibold">Integration Options:</h4>
+                  <h4 className="font-semibold text-sm">Integration Options:</h4>
                   <ul className="text-sm space-y-1 list-disc list-inside text-gray-600">
                     <li>Use with other MCP servers</li>
                     <li>Combine with business intelligence tools</li>

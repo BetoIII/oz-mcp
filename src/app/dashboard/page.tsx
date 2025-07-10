@@ -290,7 +290,7 @@ export default async function DashboardPage() {
                       required
                     />
                   </div>
-                  <Button type="submit" className="w-full">
+                  <Button type="submit" className="w-full" variant="default">
                     Create Client
                   </Button>
                 </form>
@@ -384,7 +384,7 @@ export default async function DashboardPage() {
                               <Label className="text-sm font-medium text-slate-700">API Keys</Label>
                               <form action={createApiKey}>
                                 <input type="hidden" name="clientId" value={client.id} />
-                                <Button size="sm" variant="outline" className="h-8">
+                                <Button size="sm" variant="default" className="h-8">
                                   <Plus className="h-3 w-3 mr-1" />
                                   Create API Key
                                 </Button>
