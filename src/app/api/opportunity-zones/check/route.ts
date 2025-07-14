@@ -10,7 +10,7 @@ interface SearchTracker {
   lockedUntil?: string
 }
 
-const FREE_SEARCH_LIMIT = 3
+const FREE_SEARCH_LIMIT = 5
 const LOCKOUT_DURATION_MS = 7 * 24 * 60 * 60 * 1000 // 1 week
 const COOKIE_NAME = 'oz_search_tracker'
 
@@ -195,7 +195,7 @@ async function validateAndIncrementSearch() {
     return {
       allowed: false,
       reason: 'limit_exceeded',
-      message: 'You\'ve used all 3 free searches. Create an account for unlimited searches.',
+              message: 'You\'ve used all 5 free searches. Create an account for unlimited searches.',
       lockedUntil: tracker.lockedUntil,
       searchCount: tracker.searchCount,
       tracker // Return tracker to save the lockout state
