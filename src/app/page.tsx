@@ -27,6 +27,7 @@ import Link from "next/link"
 import { motion } from "framer-motion"
 import { Footer } from "@/components/Footer"
 import { Navbar } from "@/components/Navbar"
+import { PlacesAutocomplete } from "@/components/PlacesAutocomplete"
 
 export default function HomePage() {
   const [searchValue, setSearchValue] = useState("")
@@ -351,33 +352,24 @@ export default function HomePage() {
               </div>
             </div>
 
-            <form onSubmit={(e) => {
-              e.preventDefault()
-              if (!lockoutInfo.isLocked && searchValue.trim() && !isSearching) {
+            <PlacesAutocomplete
+              value={searchValue}
+              onChange={setSearchValue}
+              onPlaceSelect={(place) => {
+                // The address is already set via onChange, so we can trigger search
                 handleSearch()
+              }}
+              onSubmit={(address) => {
+                handleSearch()
+              }}
+              placeholder={lockoutInfo.isLocked 
+                ? "Locked out - Create account for unlimited searches" 
+                : "Enter any U.S. address (e.g., 123 Main St, New York, NY)"
               }
-            }} className="flex space-x-2">
-              <Input
-                id="address-search"
-                name="address"
-                placeholder={lockoutInfo.isLocked 
-                  ? "Locked out - Create account for unlimited searches" 
-                  : "Enter any U.S. address (e.g., 123 Main St, New York, NY)"
-                }
-                value={searchValue}
-                onChange={(e) => setSearchValue(e.target.value)}
-                className="flex-1"
-                disabled={lockoutInfo.isLocked}
-                required
-              />
-              <Button
-                type="submit"
-                disabled={!searchValue.trim() || lockoutInfo.isLocked || isSearching}
-                className="px-6"
-              >
-                {isSearching ? "Checking..." : "Search QOZs"}
-              </Button>
-            </form>
+              disabled={lockoutInfo.isLocked}
+              isSearching={isSearching}
+              className="w-full"
+            />
 
             {searchResult && (
               <motion.div
