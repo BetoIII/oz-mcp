@@ -162,9 +162,9 @@ export default function HomePage() {
         const limitData = await ozResponse.json()
         setLockoutInfo({
           isLocked: true,
-          message: limitData.message || 'You\'ve used all 3 free searches. Create an account for unlimited searches.'
+          message: limitData.message || 'You\'ve used all 5 free searches. Create an account for unlimited searches.'
         })
-        setSearchCount(limitData.searchCount || 3)
+        setSearchCount(limitData.searchCount || 5)
         setIsSearching(false)
         return
       }
