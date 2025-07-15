@@ -146,8 +146,9 @@ export default function HomePage() {
     }
   };
 
-  const handleSearch = async () => {
-    if (!searchValue.trim() || lockoutInfo.isLocked) return
+  const handleSearch = async (addressOverride?: string) => {
+    const addressToSearch = addressOverride || searchValue.trim()
+    if (!addressToSearch || lockoutInfo.isLocked) return
 
     setIsSearching(true)
     setLockoutInfo(prev => ({ ...prev, message: undefined }))
@@ -155,7 +156,7 @@ export default function HomePage() {
     try {
       // Proceed directly with the search (validation is now handled in the check endpoint)
       // Use the MCP-style check with address parameter
-      const ozResponse = await fetch(`/api/opportunity-zones/check?address=${encodeURIComponent(searchValue)}&format=mcp`)
+      const ozResponse = await fetch(`/api/opportunity-zones/check?address=${encodeURIComponent(addressToSearch)}&format=mcp`)
       
       // Handle search limit exceeded
       if (ozResponse.status === 429) {
@@ -179,7 +180,7 @@ export default function HomePage() {
       // Handle address not found gracefully
       if (ozData.addressNotFound) {
         setSearchResult({
-          address: searchValue,
+          address: addressToSearch,
           isOpportunityZone: false,
           tractId: "Address Not Found",
           confidence: "N/A",
@@ -224,7 +225,7 @@ export default function HomePage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ address: searchValue }),
+        body: JSON.stringify({ address: addressToSearch }),
       })
 
       if (!geocodeResponse.ok) {
@@ -242,7 +243,7 @@ export default function HomePage() {
       const ozData2 = await ozResponse2.json()
       
       setSearchResult({
-        address: geocodeData.displayName || searchValue,
+        address: geocodeData.displayName || addressToSearch,
         isOpportunityZone: ozData2.isInOpportunityZone,
         tractId: ozData2.opportunityZoneId || "N/A",
         confidence: ozData2.performance?.info ? "High" : "Medium",
@@ -273,7 +274,7 @@ export default function HomePage() {
       const isAddressNotFound = errorMessage.includes('Address not found')
       
       setSearchResult({
-        address: searchValue,
+        address: addressToSearch,
         isOpportunityZone: false,
         tractId: isAddressNotFound ? "Address Not Found" : "Error",
         confidence: isAddressNotFound ? "N/A" : "Error",
@@ -356,11 +357,11 @@ export default function HomePage() {
               value={searchValue}
               onChange={setSearchValue}
               onPlaceSelect={(place) => {
-                // The address is already set via onChange, so we can trigger search
-                handleSearch()
+                // Use the selected place's address directly to avoid state timing issues
+                handleSearch(place.formatted_address)
               }}
               onSubmit={(address) => {
-                handleSearch()
+                handleSearch(address)
               }}
               placeholder={lockoutInfo.isLocked 
                 ? "Locked out - Create account for unlimited searches" 
