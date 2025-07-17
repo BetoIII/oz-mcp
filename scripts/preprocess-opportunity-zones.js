@@ -170,7 +170,7 @@ class OpportunityZonePreprocessor {
         type: 'Feature',
         geometry: this.optimizeGeometry(feature.geometry),
         properties: {
-          GEOID: feature.properties?.GEOID || feature.properties?.CENSUSTRAC || `OZ_${i}`
+          GEOID: feature.properties?.GEOID || feature.properties?.CENSUSTRACT || `OZ_${i}`
         }
       };
 
