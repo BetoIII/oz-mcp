@@ -68,7 +68,7 @@ class OpportunityZoneSeeder {
         type: 'Feature',
         geometry: feature.geometry,
         properties: {
-          GEOID: feature.properties?.GEOID || feature.properties?.CENSUSTRAC
+          GEOID: feature.properties?.GEOID || feature.properties?.CENSUSTRACT
         }
       }))
     };

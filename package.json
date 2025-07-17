@@ -15,7 +15,8 @@
     "preprocess:force": "node scripts/preprocess-opportunity-zones.js --force",
     "optimize": "npm run preprocess && npm run seed",
     "deploy:setup": "node scripts/deploy-setup.js",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "test": "node --test"
   },
   "dependencies": {
     "@auth/core": "^0.39.1",

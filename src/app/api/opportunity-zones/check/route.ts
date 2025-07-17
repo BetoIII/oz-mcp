@@ -280,6 +280,7 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  const startTime = Date.now()
   try {
     // If address is provided, handle geocoding and usage validation
     if (address) {
@@ -342,7 +343,6 @@ export async function GET(request: NextRequest) {
     }
 
     const service = OpportunityZoneService.getInstance()
-    const startTime = Date.now()
 
     const result = await service.checkPoint(latitude, longitude)
     const queryTime = Date.now() - startTime
@@ -490,7 +490,7 @@ export async function GET(request: NextRequest) {
     
     return finalResponse
   } catch (error) {
-    const queryTime = Date.now() - (Date.now() - 100) // Approximate timing for error case
+    const queryTime = Date.now() - startTime
     
     console.error('Error checking opportunity zone:', error)
     
