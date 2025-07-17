@@ -155,8 +155,11 @@ export class GeocodingService {
       }
 
       // Create a sanitized display name like in the opportunity-zone-search repo
-      const sanitizedDisplayName = result.display_name ? 
-        result.display_name.split(',').slice(0, -2).join(',') : address;
+      const sanitizedDisplayName = (() => {
+        if (!result.display_name) return address;
+        const parts = result.display_name.split(',');
+        return parts.length > 2 ? parts.slice(0, parts.length - 2).join(',').trim() : result.display_name;
+      })();
 
       log("success", `✅ Geocoded "${address}" to ${geocodingResult.latitude}, ${geocodingResult.longitude}`)
       log("info", `📍 Using coordinates for "${sanitizedDisplayName}"`);
