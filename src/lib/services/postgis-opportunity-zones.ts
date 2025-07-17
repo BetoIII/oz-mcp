@@ -149,7 +149,7 @@ export class PostGISOpportunityZoneService {
         log("info", `📦 Processing batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(features.length / batchSize)} (${batch.length} features)`)
         
         const batchPromises = batch.map(async (feature: any) => {
-          const geoid = feature.properties?.GEOID || feature.properties?.CENSUSTRAC
+          const geoid = feature.properties?.GEOID || feature.properties?.CENSUSTRACT
           
           if (!geoid) {
             log("warning", `⚠️  Skipping feature without GEOID`)

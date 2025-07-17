@@ -48,7 +48,7 @@ A Next.js-based MCP (Model Context Protocol) server that provides opportunity zo
 3. **Set up the database**:
    ```bash
    npx prisma migrate deploy
-   npm run seed:opportunity-zones
+   npm run seed
    ```
 
 4. **Start the development server**:
