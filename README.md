@@ -136,6 +136,19 @@ Validate search parameters before making requests.
 ### `get_api_status`
 Get current API status and rate limiting information.
 
+### `get_listing_address`
+Extract a normalized street address from a listing URL.
+
+**Parameters:**
+- `url` (string): Listing URL to analyze
+
+**Example:**
+```typescript
+await use_mcp_tool("get_listing_address", {
+  url: "https://www.zillow.com/homedetails/123-Main-St-Somecity-ST-12345/1234567_zpid/"
+});
+```
+
 ## 🔐 OAuth 2.1 Implementation
 
 ### Authorization Flow
@@ -195,6 +208,7 @@ Key tables:
 
 - `GET /api/opportunity-zones/check` - Check coordinates
 - `POST /api/opportunity-zones/geocode` - Geocode address
+- `POST /api/listing-address` - Extract listing address from a URL
 - `GET /api/opportunity-zones/status` - API status
 - `POST /api/oauth/register` - Register OAuth client
 - `POST /api/oauth/token` - Exchange tokens

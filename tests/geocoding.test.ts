@@ -1,15 +1,18 @@
-import { test, strictEqual } from 'node:test'
+import { test } from 'node:test'
+import assert from 'node:assert/strict'
 import { GeocodingService } from '../src/lib/services/geocoding'
 import { prisma } from '../src/app/prisma'
 
+process.env.GEOCODING_API_KEY = process.env.GEOCODING_API_KEY || 'test'
+
 // Simple in-memory cache mock
 const cache: Record<string, any> = {}
-prisma.geocodingCache = {
+;(prisma as any).geocodingCache = {
   findUnique: async ({ where }: any) => cache[where.address] || null,
   upsert: async ({ where, update, create }: any) => {
     cache[where.address] = { id: 1, ...(create || {}), ...(update || {}) }
   }
-} as any
+}
 
 // Mock fetch to record calls
 let fetchCount = 0
@@ -28,7 +31,7 @@ test('geocodeAddress caches results', async () => {
   const first = await service.geocodeAddress(addr)
   const second = await service.geocodeAddress(addr)
 
-  strictEqual(fetchCount, 1)
-  strictEqual(first.latitude, second.latitude)
-  strictEqual(first.longitude, second.longitude)
+  assert.strictEqual(fetchCount, 1)
+  assert.strictEqual(first.latitude, second.latitude)
+  assert.strictEqual(first.longitude, second.longitude)
 })

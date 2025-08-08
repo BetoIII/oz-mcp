@@ -4,6 +4,7 @@ import { prisma } from '@/app/prisma';
 import { NextRequest } from 'next/server';
 import { opportunityZoneService } from '@/lib/services/opportunity-zones';
 import { geocodingService } from '@/lib/services/geocoding';
+import { extractAddressFromUrl } from '@/lib/services/listing-address';
 
 // Authentication helper
 async function authenticateRequest(request: NextRequest) {
@@ -186,6 +187,56 @@ const handler = async (req: Request) => {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
             const fullResponse = [
               `Error geocoding address "${address}": ${errorMessage}`,
+              '',
+              ...messages
+            ].join('\n');
+
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: fullResponse,
+                },
+              ],
+            };
+          }
+        }
+      );
+
+      server.tool(
+        "get_listing_address",
+        "Extract a normalized US mailing address from a listing URL",
+        {
+          url: z.string().describe("Listing URL to analyze"),
+        },
+        async ({ url }) => {
+          const messages: string[] = [];
+          const log = (type: string, message: string) => {
+            messages.push(`[${type.toUpperCase()}] ${message}`);
+            console.log(`[${type.toUpperCase()}] ${message}`);
+          };
+
+          try {
+            const address = await extractAddressFromUrl(url);
+            const responseText = [
+              `Address: ${address}`,
+              '',
+              ...messages
+            ].join('\n');
+
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: responseText,
+                },
+              ],
+            };
+          } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            const status = errorMessage === 'NOT_FOUND' ? 'Address not found' : `Error: ${errorMessage}`;
+            const fullResponse = [
+              status,
               '',
               ...messages
             ].join('\n');
