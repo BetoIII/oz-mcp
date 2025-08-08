@@ -39,6 +39,12 @@ This is a Next.js-based MCP (Model Context Protocol) server that provides opport
 # Development
 npm run dev                    # Start development server
 
+# Testing
+npm run test                   # Run tests in watch mode
+npm run test:run              # Run tests once
+npm run test:ui               # Run tests with UI
+npm run test:coverage         # Run tests with coverage
+
 # Database Operations
 npx prisma migrate deploy      # Apply database migrations
 npx prisma generate           # Generate Prisma client
@@ -86,9 +92,38 @@ Required environment variables:
 
 ## Testing & Quality
 
-The application uses Next.js built-in linting. Always run `npm run lint` before committing changes.
+### Test Framework
+- **Vitest**: Fast unit/integration testing with TypeScript support
+- **MSW**: Mock Service Worker for HTTP request mocking
+- **Test Coverage**: Focus on API routes, services, and critical business logic
 
-For spatial query testing, use the playground at `/playground` or the MCP status endpoint to verify PostGIS functionality.
+### Test Structure
+- **Unit Tests**: Services (`src/lib/services/`) and utilities (`src/lib/utils.ts`)
+- **API Route Tests**: All endpoints under `src/app/api/`
+- **Integration Tests**: Full request/response cycles with mocked dependencies
+
+### Running Tests
+```bash
+npm run test           # Watch mode for development
+npm run test:run       # Single run for CI/CD
+npm run test:ui        # Visual test interface
+npm run test:coverage  # Generate coverage reports
+```
+
+### Test Categories Implemented
+**High Priority (100% coverage target):**
+- API authentication and rate limiting
+- MCP JSON-RPC protocol handling  
+- Geocoding service with caching
+- OAuth 2.1 PKCE token exchange
+- Opportunity zone spatial queries
+
+**Low Priority:**
+- Service status endpoints
+- Utility functions
+- Error handling paths
+
+Always run `npm run test:run` before committing changes. For spatial query testing, use the playground at `/playground` or the MCP status endpoint to verify PostGIS functionality.
 
 ## Deployment Notes
 
