@@ -17,7 +17,9 @@
     "deploy:setup": "node scripts/deploy-setup.js",
     "postinstall": "prisma generate",
     "test": "tsx --test",
-    "test:oz": "tsx --test tests/utils.maps-url.test.ts tests/api.mcp.maps-link.e2e.test.ts"
+    "test:oz": "tsx --test tests/utils.maps-url.test.ts tests/api.mcp.maps-link.e2e.test.ts",
+    "test:critical": "tsx --test tests/business-logic.monthly-limits.test.ts tests/services.postgis.test.ts tests/auth-utils.test.ts tests/rate-limiting.cookie-tracker.test.ts tests/usage-reset.monthly-logic.test.ts",
+    "test:all": "tsx --test tests/*.test.ts"
   },
   "dependencies": {
     "@auth/core": "^0.39.1",
