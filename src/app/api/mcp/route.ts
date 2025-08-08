@@ -3,6 +3,7 @@ import { prisma } from '@/app/prisma';
 import { opportunityZoneService } from '@/lib/services/opportunity-zones';
 import { geocodingService } from '@/lib/services/geocoding';
 import { generateGoogleMapsUrl } from '@/lib/utils';
+import { extractAddressFromUrl } from '@/lib/services/listing-address';
 
 // Temporary token usage tracking (in-memory for simplicity)
 const tempTokenUsage = new Map<string, number>();
@@ -343,6 +344,46 @@ export async function POST(request: NextRequest) {
             ],
           };
           // Don't increment usage on errors
+        }
+        break;
+
+      case 'get_listing_address':
+        try {
+          const { url } = args;
+          const address = await extractAddressFromUrl(url);
+
+          const responseText = [
+            `Address: ${address}`,
+            '',
+            ...messages
+          ].join('\n');
+
+          result = {
+            content: [
+              {
+                type: "text",
+                text: responseText,
+              },
+            ],
+          };
+          // This tool does not affect usage counts
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          const status = errorMessage === 'NOT_FOUND' ? 'Address not found' : `Error: ${errorMessage}`;
+          const fullResponse = [
+            status,
+            '',
+            ...messages
+          ].join('\n');
+
+          result = {
+            content: [
+              {
+                type: "text",
+                text: fullResponse,
+              },
+            ],
+          };
         }
         break;
 
