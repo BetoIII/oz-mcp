@@ -49,7 +49,7 @@ function validateFinalAddress(address: string): boolean {
 
 function extractUsingRegex(text: string): ParsedAddress | null {
   const cleaned = normalizeSeparators(text);
-  const addressRegex = /(\d{1,6}\s+[A-Za-z0-9.'’&\- ]+?\s+(?:St(?:reet)?|Ave(?:nue)?|Rd|Road|Blvd|Boulevard|Dr|Drive|Ct|Court|Ln|Lane|Way|Pl|Place|Cir|Circle|Pkwy|Parkway|Ter|Terrace|Trl|Trail|Hwy|Highway|Pike|Row|Sq|Square|Loop|Run|Cres|Crescent|Bend|Rte|Route)\b(?:\s+(?:N|S|E|W|NE|NW|SE|SW|North|South|East|West))?)\s*,?\s*([A-Za-z.'’&\- ]+?),?\s+([A-Z]{2})\s+(\d{5}(?:-\d{4})?)/i;
+  const addressRegex = /(\d{1,6}\s+[A-Za-z0-9.'’&\- ]+?\s+(?:St(?:reet)?|Ave(?:nue)?|Rd|Road|Blvd|Boulevard|Dr|Drive|Ct|Court|Ln|Lane|Way|Pl|Place|Cir|Circle|Pkwy|Parkway|Ter|Terrace|Trl|Trail|Hwy|Highway|Pike|Row|Sq|Square|Loop|Run|Cres|Crescent|Bend|Rte|Route)\b)\s*,?\s*([A-Za-z.'’&\- ]+?),?\s+([A-Z]{2})\s+(\d{5}(?:-\d{4})?)(?![A-Za-z])/i;
   const match = cleaned.match(addressRegex);
   if (!match) return null;
   const [, street, city, state, zip] = match;

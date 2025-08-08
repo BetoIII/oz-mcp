@@ -1,4 +1,5 @@
-import { test, strictEqual, rejects } from 'node:test'
+import { test } from 'node:test'
+import assert from 'node:assert/strict'
 import { extractAddressFromUrl } from '../src/lib/services/listing-address'
 
 // Reset fetch between tests
@@ -12,7 +13,7 @@ test('extracts address from URL slug', async () => {
 
   const url = 'https://www.zillow.com/homedetails/123-Main-St-Somecity-ST-12345/1234567_zpid/'
   const address = await extractAddressFromUrl(url)
-  strictEqual(address, '123 Main St, Somecity, ST 12345')
+  assert.strictEqual(address, '123 Main St, Somecity, ST 12345')
 })
 
 test('extracts address from JSON-LD in HTML', async () => {
@@ -44,7 +45,7 @@ test('extracts address from JSON-LD in HTML', async () => {
 
   const url = 'https://example.com/listing/abc'
   const address = await extractAddressFromUrl(url)
-  strictEqual(address, '456 Oak Ave, Redwood City, CA 94063')
+  assert.strictEqual(address, '456 Oak Ave, Redwood City, CA 94063')
 })
 
 test('throws NOT_FOUND when no address is present', async () => {
@@ -56,7 +57,7 @@ test('throws NOT_FOUND when no address is present', async () => {
   }
 
   const url = 'https://example.com/listing/no-address'
-  await rejects(async () => extractAddressFromUrl(url))
+  await assert.rejects(async () => extractAddressFromUrl(url))
 })
 
 // Restore fetch after tests
