@@ -77,4 +77,23 @@ export const seo = {
   defaultDescription: "Secure, OAuth-protected MCP server providing geospatial opportunity zone data and geocoding services for AI applications.",
   defaultUrl: config.baseUrl,
   defaultImage: "/og-image.jpg"
-}; 
+};
+
+/**
+ * Generate a Google Maps URL for displaying a location
+ * @param latitude - Latitude coordinate
+ * @param longitude - Longitude coordinate  
+ * @param address - Optional address string to include in query
+ * @returns Formatted Google Maps URL
+ */
+export function generateGoogleMapsUrl(latitude: number, longitude: number, address?: string): string {
+  const baseUrl = 'https://www.google.com/maps/search/';
+  
+  // Use coordinates as the primary query for accuracy
+  const coordsQuery = `${latitude},${longitude}`;
+  
+  // If address is provided, include it for better user experience
+  const query = address ? `${address} ${coordsQuery}` : coordsQuery;
+  
+  return `${baseUrl}?api=1&query=${encodeURIComponent(query)}`;
+} 

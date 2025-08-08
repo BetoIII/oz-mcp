@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/app/prisma';
 import { opportunityZoneService } from '@/lib/services/opportunity-zones';
 import { geocodingService } from '@/lib/services/geocoding';
+import { generateGoogleMapsUrl } from '@/lib/utils';
 
 // Temporary token usage tracking (in-memory for simplicity)
 const tempTokenUsage = new Map<string, number>();
@@ -234,9 +235,14 @@ export async function POST(request: NextRequest) {
             ? `Address "${address}" (${coords.latitude}, ${coords.longitude}) is ${isInOZ ? 'in' : 'not in'} an opportunity zone.`
             : `Point (${coords.latitude}, ${coords.longitude}) is ${isInOZ ? 'in' : 'not in'} an opportunity zone.`;
 
+          // Generate Google Maps URL for the location
+          const mapUrl = generateGoogleMapsUrl(coords.latitude, coords.longitude, address);
+
           const fullResponse = [
             responseText,
             isInOZ ? `Zone ID: ${ozResult.zoneId}` : '',
+            `📍 View on Google Maps: ${mapUrl}`,
+            '',
             `Data version: ${ozResult.metadata.version}`,
             `Last updated: ${ozResult.metadata.lastUpdated.toISOString()}`,
             `Feature count: ${ozResult.metadata.featureCount}`,

@@ -87,19 +87,32 @@ The server supports multiple transport protocols:
 ## 📚 Available MCP Tools
 
 ### `check_opportunity_zone`
-Check if coordinates are within an opportunity zone.
+Check if coordinates or addresses are within an opportunity zone. Returns the status along with a Google Maps link for easy visualization.
 
 **Parameters:**
 - `latitude` (number): Latitude coordinate (-90 to 90)
 - `longitude` (number): Longitude coordinate (-180 to 180)
+- `address` (string): Full address to check (alternative to coordinates)
 
 **Example:**
 ```typescript
+// Using coordinates
 await use_mcp_tool("check_opportunity_zone", {
   latitude: 40.7128,
   longitude: -74.0060
 });
+
+// Using address
+await use_mcp_tool("check_opportunity_zone", {
+  address: "1600 Pennsylvania Avenue NW, Washington, DC 20500"
+});
 ```
+
+**Response includes:**
+- Opportunity zone status (in/not in zone)
+- Zone ID (if applicable)
+- Google Maps link for location visualization
+- Data version and metadata
 
 ### `geocode_address`
 Convert an address to coordinates and check opportunity zone status.
