@@ -16,7 +16,8 @@
     "optimize": "npm run preprocess && npm run seed",
     "deploy:setup": "node scripts/deploy-setup.js",
     "postinstall": "prisma generate",
-    "test": "tsx --test \"tests/**/*.test.ts\""
+    "test": "tsx --test",
+    "test:oz": "tsx --test tests/utils.maps-url.test.ts tests/api.mcp.maps-link.e2e.test.ts"
   },
   "dependencies": {
     "@auth/core": "^0.39.1",
