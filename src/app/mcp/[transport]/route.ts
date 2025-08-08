@@ -252,6 +252,36 @@ const handler = async (req: Request) => {
           }
         }
       );
+
+      server.tool(
+        "get_listing_address",
+        "Extract the full mailing address from a real-estate listing URL",
+        {
+          url: z.string().url().describe("Listing URL (e.g., Zillow/Redfin/Realtor)")
+        },
+        async ({ url }) => {
+          const { listingAddressService } = await import('@/lib/services/listing-address')
+          try {
+            const address = await listingAddressService.extractAddressFromUrl(url)
+            return {
+              content: [
+                { type: 'text', text: address }
+              ]
+            }
+          } catch (e: any) {
+            if (e?.message === 'NOT_FOUND' || e?.code === 'NOT_FOUND') {
+              return {
+                isError: true,
+                content: [ { type: 'text', text: 'Address not found' } ]
+              }
+            }
+            return {
+              isError: true,
+              content: [ { type: 'text', text: 'Server error extracting listing address' } ]
+            }
+          }
+        }
+      )
     },
     {
       // Optionally add server capabilities here

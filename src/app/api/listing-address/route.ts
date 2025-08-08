@@ -1,0 +1,59 @@
+import { NextResponse } from 'next/server'
+import { z } from 'zod'
+import { listingAddressService } from '@/lib/services/listing-address'
+
+export const runtime = 'nodejs'
+
+const requestSchema = z.object({
+  url: z.string().url('Invalid URL')
+})
+
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 204,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    }
+  })
+}
+
+export async function POST(request: Request) {
+  try {
+    const body = await request.json().catch(() => ({}))
+    const parsed = requestSchema.safeParse(body)
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: 'Invalid request parameters', details: parsed.error.format() },
+        { status: 400, headers: { 'Access-Control-Allow-Origin': '*' } }
+      )
+    }
+
+    const { url } = parsed.data
+
+    try {
+      const address = await listingAddressService.extractAddressFromUrl(url)
+      return NextResponse.json({ address }, { headers: { 'Access-Control-Allow-Origin': '*' } })
+    } catch (err) {
+      const e = err as any
+      if (e?.message === 'NOT_FOUND' || e?.code === 'NOT_FOUND') {
+        return NextResponse.json(
+          { error: 'Address not found' },
+          { status: 422, headers: { 'Access-Control-Allow-Origin': '*' } }
+        )
+      }
+      console.error('Error extracting listing address:', err)
+      return NextResponse.json(
+        { error: 'Server error' },
+        { status: 500, headers: { 'Access-Control-Allow-Origin': '*' } }
+      )
+    }
+  } catch (error) {
+    console.error('Unexpected error in listing-address route:', error)
+    return NextResponse.json(
+      { error: 'Server error' },
+      { status: 500, headers: { 'Access-Control-Allow-Origin': '*' } }
+    )
+  }
+}

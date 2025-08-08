@@ -136,6 +136,34 @@ Validate search parameters before making requests.
 ### `get_api_status`
 Get current API status and rate limiting information.
 
+## Listing Address Extraction API
+
+- Endpoint: `POST /api/listing-address`
+- Request:
+
+```json
+{ "url": "https://www.zillow.com/homedetails/123-Main-St-SomeCity-ST-12345/..." }
+```
+
+- 200 Response:
+
+```json
+{ "address": "123 Main St, SomeCity, ST 12345" }
+```
+
+- Errors:
+- 400: Invalid or missing URL
+- 422: Address not found
+- 500: Server error
+
+This endpoint attempts to extract a street address from the URL path first, then fetches the page HTML and tries JSON-LD and generic HTML patterns. It validates with a strict US address regex.
+
+### MCP Tool
+A new MCP tool is available:
+- id: `get_listing_address`
+- input: `{ url: string }`
+- output: text content with the address or error.
+
 ## 🔐 OAuth 2.1 Implementation
 
 ### Authorization Flow
