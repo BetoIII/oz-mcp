@@ -338,8 +338,8 @@ export default function PlaygroundClient() {
       if (!response.ok) {
         // Handle temporary key limit exceeded
         if (response.status === 429 && result.code === 'TEMP_KEY_LIMIT_EXCEEDED') {
-          setTempKeyInfo(prev => prev ? { ...prev, usageCount: 3 } : null);
-          setError('Temporary API key limit exceeded. Create a new temporary key or signup for unlimited access.');
+          setTempKeyInfo(prev => prev ? { ...prev, usageCount: 5 } : null);
+          setError('Temporary API key limit exceeded. Create a new temporary key (POST /api/temporary-key or use the Create Temporary API Key button) or sign up at the dashboard for higher limits.');
         } else {
           setError(`HTTP ${response.status}: ${result.error?.message || 'Unknown error'}`);
         }
@@ -504,7 +504,7 @@ export default function PlaygroundClient() {
                         </Link>
                       </div>
                       <div className="text-xs text-muted-foreground">
-                        Temporary keys allow 3 requests and expire in 24 hours
+                        Temporary keys allow 5 requests and expire in 24 hours
                       </div>
                     </div>
                   </div>
@@ -524,11 +524,11 @@ export default function PlaygroundClient() {
                           <span className="text-sm font-medium text-blue-800">Temporary API Key</span>
                         </div>
                         <div className="text-xs text-blue-700">
-                          Usage: {tempKeyInfo.usageCount || 0}/3 requests • Expires in 24 hours
+                          Usage: {tempKeyInfo.usageCount || 0}/5 requests • Expires in 24 hours
                         </div>
-                        {(tempKeyInfo.usageCount || 0) >= 2 && (
+                        {(tempKeyInfo.usageCount || 0) >= 4 && (
                           <div className="text-xs text-orange-600 mt-1">
-                            {(tempKeyInfo.usageCount || 0) === 2 ? 'Last request remaining!' : 'Consider signing up for unlimited access'}
+                            {(tempKeyInfo.usageCount || 0) === 4 ? 'Last request remaining!' : 'Consider signing up for unlimited access'}
                           </div>
                         )}
                       </div>

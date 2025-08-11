@@ -4,7 +4,7 @@ import { randomBytes } from 'crypto';
 
 export async function POST(request: NextRequest) {
   try {
-    // Create a temporary access token that expires in 24 hours and allows 3 requests
+    // Create a temporary access token that expires in 24 hours and allows 5 requests
     const tempToken = `temp_${randomBytes(32).toString('hex')}`;
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
@@ -53,8 +53,8 @@ export async function POST(request: NextRequest) {
       success: true,
       token: tempToken,
       expiresAt: expiresAt.toISOString(),
-      usageLimit: 3,
-      message: 'Temporary API key created successfully. Valid for 24 hours and 3 requests.',
+      usageLimit: 5,
+      message: 'Temporary API key created successfully. Valid for 24 hours and 5 requests.',
     }, {
       headers: {
         'Access-Control-Allow-Origin': '*',
