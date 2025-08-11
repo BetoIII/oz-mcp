@@ -375,6 +375,13 @@ export default function PlaygroundClient() {
         address: 'Address to geocode',
       },
     },
+    get_listing_address: {
+      name: 'Get Listing Address',
+      description: 'Extract address from real estate listing URLs',
+      parameters: {
+        url: 'Real estate listing URL (e.g., Zillow, Realtor.com)',
+      },
+    },
     get_oz_status: {
       name: 'Get Service Status',
       description: 'Get opportunity zone service status and cache information',
@@ -563,6 +570,7 @@ export default function PlaygroundClient() {
                     <SelectContent>
                       <SelectItem value="check_opportunity_zone">Check Opportunity Zone</SelectItem>
                       <SelectItem value="geocode_address">Geocode Address</SelectItem>
+                      <SelectItem value="get_listing_address">Get Listing Address</SelectItem>
                       <SelectItem value="get_oz_status">Get Service Status</SelectItem>
                     </SelectContent>
                   </Select>
@@ -620,6 +628,21 @@ export default function PlaygroundClient() {
                   </div>
                 )}
 
+                {selectedTool === 'get_listing_address' && (
+                  <div className="space-y-2">
+                    <Label htmlFor="url">Real Estate Listing URL</Label>
+                    <Input
+                      id="url"
+                      placeholder="e.g., https://www.zillow.com/homedetails/123-Main-St-..."
+                      value={params.url}
+                      onChange={(e) => handleParamChange('url', e.target.value)}
+                    />
+                    <div className="text-xs text-muted-foreground">
+                      Supports Zillow, Realtor.com, and other major real estate sites
+                    </div>
+                  </div>
+                )}
+
                 {selectedTool === 'get_oz_status' && (
                   <div className="text-sm text-muted-foreground">
                     <p>This tool requires no parameters.</p>
@@ -672,8 +695,8 @@ export default function PlaygroundClient() {
                       {response.error ? "Error" : "Success"}
                     </Badge>
 
-                    {/* Parsed OZ Result Display */}
-                    {(selectedTool === 'check_opportunity_zone' || selectedTool === 'geocode_address') && response.result?.content?.[0]?.text && (
+                    {/* Parsed Result Display */}
+                    {(selectedTool === 'check_opportunity_zone' || selectedTool === 'geocode_address' || selectedTool === 'get_listing_address') && response.result?.content?.[0]?.text && (
                       <div className="mb-4">
                         {(() => {
                           const responseText = response.result.content[0].text;
@@ -766,6 +789,28 @@ export default function PlaygroundClient() {
                                     {displayMatch && (
                                       <p><strong>Display Name:</strong> {displayMatch[1]}</p>
                                     )}
+                                  </div>
+                                </div>
+                              );
+                            }
+                          }
+
+                          // Handle successful listing address extraction
+                          if (selectedTool === 'get_listing_address') {
+                            const addressMatch = responseText.match(/Address: ([^\n]+)/);
+                            
+                            if (addressMatch) {
+                              return (
+                                <div className="rounded-lg border bg-muted/50 p-4 space-y-2">
+                                  <div className="flex items-center space-x-2">
+                                    <CheckCircle className="h-5 w-5 text-green-600" />
+                                    <span className="font-medium">🏠 Address Extracted</span>
+                                  </div>
+                                  <div className="text-sm text-muted-foreground">
+                                    <p><strong>Extracted Address:</strong> {addressMatch[1]}</p>
+                                  </div>
+                                  <div className="text-xs text-blue-600 bg-blue-50 p-2 rounded">
+                                    💡 Tip: You can now use this address with "Check Opportunity Zone" tool
                                   </div>
                                 </div>
                               );
