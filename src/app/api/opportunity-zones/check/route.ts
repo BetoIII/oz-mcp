@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { OpportunityZoneService } from '@/lib/services/opportunity-zones'
-import { geocodingService } from '@/lib/services/geocoding'
+import { geocodingService, GeocodingRateLimitError } from '@/lib/services/geocoding'
 import { cookies } from 'next/headers'
 import { prisma } from '@/app/prisma'
 
@@ -503,6 +503,35 @@ export async function GET(request: NextRequest) {
     
     // Don't increment usage on errors
     
+    // Map upstream geocoder 429s to HTTP 429 with clear code and rate-limit headers
+    if (error instanceof GeocodingRateLimitError) {
+      const res = NextResponse.json(
+        {
+          error: 'Rate limited by geocoding provider',
+          code: error.code,
+          message: error.message,
+          ...(address && { address }),
+          queryTime: `${queryTime}ms`
+        },
+        { status: 429 }
+      )
+      if (error.retryAfter) res.headers.set('Retry-After', error.retryAfter)
+      if (error.rateLimitLimit) {
+        res.headers.set('X-RateLimit-Limit', error.rateLimitLimit)
+        res.headers.set('RateLimit-Limit', error.rateLimitLimit)
+      }
+      if (error.rateLimitRemaining) {
+        res.headers.set('X-RateLimit-Remaining', error.rateLimitRemaining)
+        res.headers.set('RateLimit-Remaining', error.rateLimitRemaining)
+      }
+      if (error.rateLimitReset) {
+        res.headers.set('X-RateLimit-Reset', error.rateLimitReset)
+        res.headers.set('RateLimit-Reset', error.rateLimitReset)
+      }
+      res.headers.set('Access-Control-Expose-Headers', 'Retry-After, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset, RateLimit-Limit, RateLimit-Remaining, RateLimit-Reset')
+      return withCors(res)
+    }
+
     return withCors(NextResponse.json(
       { 
         error: 'Failed to check opportunity zone',

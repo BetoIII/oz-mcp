@@ -1,5 +1,34 @@
 import { prisma } from '@/app/prisma'
 
+// Custom error to represent upstream geocoder rate limiting
+export class GeocodingRateLimitError extends Error {
+  public status: number = 429
+  public code: string = 'GEOCODER_RATE_LIMITED'
+  public retryAfter?: string
+  public rateLimitLimit?: string
+  public rateLimitRemaining?: string
+  public rateLimitReset?: string
+  public rawHeaders?: Record<string, string>
+
+  constructor(message: string, headers?: Headers) {
+    super(message)
+    this.name = 'GeocodingRateLimitError'
+    Object.setPrototypeOf(this, GeocodingRateLimitError.prototype)
+
+    if (headers) {
+      this.retryAfter = headers.get('Retry-After') ?? undefined
+      this.rateLimitLimit = headers.get('X-RateLimit-Limit') ?? headers.get('RateLimit-Limit') ?? undefined
+      this.rateLimitRemaining = headers.get('X-RateLimit-Remaining') ?? headers.get('RateLimit-Remaining') ?? undefined
+      this.rateLimitReset = headers.get('X-RateLimit-Reset') ?? headers.get('RateLimit-Reset') ?? undefined
+      const collected: Record<string, string> = {}
+      headers.forEach((value, key) => {
+        collected[key] = value
+      })
+      this.rawHeaders = collected
+    }
+  }
+}
+
 // Type for the log function
 type LogFn = (type: "info" | "success" | "warning" | "error", message: string) => void;
 
@@ -123,8 +152,15 @@ export class GeocodingService {
       })
 
       if (!response.ok) {
-        const errorMessage = `❌ Geocoding failed: ${response.status} ${response.statusText}`;
-        log("error", errorMessage);
+        // Map upstream rate limit to a structured error so API routes can return HTTP 429
+        if (response.status === 429) {
+          const message = `Geocoding rate limited: ${response.status} ${response.statusText}`
+          log("warning", `⚠️ ${message}`)
+          throw new GeocodingRateLimitError(message, response.headers)
+        }
+
+        const errorMessage = `❌ Geocoding failed: ${response.status} ${response.statusText}`
+        log("error", errorMessage)
         throw new Error(`Geocoding API error: ${response.status} ${response.statusText}`)
       }
 

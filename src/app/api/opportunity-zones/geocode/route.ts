@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
-import { geocodingService } from '@/lib/services/geocoding'
+import { geocodingService, GeocodingRateLimitError } from '@/lib/services/geocoding'
 
 export const runtime = 'nodejs'
 
@@ -73,6 +73,32 @@ export async function POST(request: Request) {
 
   } catch (error) {
     console.error('Error geocoding address:', error)
+    if (error instanceof GeocodingRateLimitError) {
+      const res = NextResponse.json(
+        {
+          error: 'Geocoder rate limited',
+          code: error.code,
+          message: error.message,
+        },
+        { status: 429 }
+      )
+      if (error.retryAfter) res.headers.set('Retry-After', error.retryAfter)
+      if (error.rateLimitLimit) {
+        res.headers.set('X-RateLimit-Limit', error.rateLimitLimit)
+        res.headers.set('RateLimit-Limit', error.rateLimitLimit)
+      }
+      if (error.rateLimitRemaining) {
+        res.headers.set('X-RateLimit-Remaining', error.rateLimitRemaining)
+        res.headers.set('RateLimit-Remaining', error.rateLimitRemaining)
+      }
+      if (error.rateLimitReset) {
+        res.headers.set('X-RateLimit-Reset', error.rateLimitReset)
+        res.headers.set('RateLimit-Reset', error.rateLimitReset)
+      }
+      res.headers.set('Access-Control-Expose-Headers', 'Retry-After, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset, RateLimit-Limit, RateLimit-Remaining, RateLimit-Reset')
+      res.headers.set('Access-Control-Allow-Origin', '*')
+      return res
+    }
     return NextResponse.json(
       { 
         error: 'Geocoding failed',
