@@ -65,14 +65,15 @@ const handler = async (req: Request) => {
   
   console.log(`[MCP] New request from ${clientIP} (${userAgent})`);
   
-  // Block Chrome extension access to prevent unwanted SSE connections
-  if (userAgent.toLowerCase().includes('chrome') && 
-      (userAgent.includes('undici') || userAgent.includes('extension'))) {
-    console.log(`[MCP] Chrome extension blocked from MCP endpoint`);
+  // Block Chrome extension and undici access to prevent unwanted SSE connections
+  if (userAgent.includes('undici') || 
+      (userAgent.toLowerCase().includes('chrome') && userAgent.includes('extension'))) {
+    console.log(`[MCP] Extension/undici blocked from MCP endpoint - User Agent: ${userAgent}`);
     return new Response(JSON.stringify({ 
-      error: 'Chrome extensions are not supported',
+      error: 'Extensions and automated clients are not supported',
       message: 'Please use the regular API endpoints at /api/opportunity-zones/check instead',
-      redirect: '/api/opportunity-zones/check'
+      redirect: '/api/opportunity-zones/check',
+      userAgent: userAgent
     }), {
       status: 403,
       headers: { 
