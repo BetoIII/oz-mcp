@@ -5,6 +5,7 @@ import { NextRequest } from 'next/server';
 import { opportunityZoneService } from '@/lib/services/opportunity-zones';
 import { geocodingService } from '@/lib/services/geocoding';
 import { extractAddressFromUrl } from '@/lib/services/listing-address';
+import { mcpConnectionManager, getClientIP, generateConnectionId } from '@/lib/mcp-connection-manager';
 
 // Authentication helper
 async function authenticateRequest(request: NextRequest) {
@@ -53,10 +54,40 @@ async function authenticateRequest(request: NextRequest) {
   }
 }
 
-// MCP handler with authentication
+// MCP handler with authentication and connection management
 const handler = async (req: Request) => {
-  // Inject authentication here
   const nextReq = req as any as NextRequest; // for type compatibility
+  
+  // Extract client information
+  const clientIP = getClientIP(req);
+  const userAgent = req.headers.get('user-agent') || 'unknown';
+  const connectionId = generateConnectionId();
+  
+  console.log(`[MCP] New request from ${clientIP} (${userAgent})`);
+  
+  // Check connection limits and rate limiting
+  const connectionCheck = mcpConnectionManager.canAcceptConnection(clientIP, userAgent);
+  if (!connectionCheck.allowed) {
+    console.log(`[MCP] Connection rejected: ${connectionCheck.reason}`);
+    
+    const rateLimitStats = mcpConnectionManager.getRateLimitStats(clientIP);
+    return new Response(JSON.stringify({ 
+      error: 'Connection rejected',
+      reason: connectionCheck.reason,
+      rateLimit: rateLimitStats
+    }), {
+      status: 429,
+      headers: { 
+        'Content-Type': 'application/json', 
+        'Access-Control-Allow-Origin': '*',
+        'X-RateLimit-Limit': '30',
+        'X-RateLimit-Remaining': rateLimitStats.remaining.toString(),
+        'X-RateLimit-Reset': Math.ceil(rateLimitStats.resetTime.getTime() / 1000).toString(),
+      },
+    });
+  }
+
+  // Authenticate the request
   const accessToken = await authenticateRequest(nextReq);
   if (!accessToken) {
     return new Response(JSON.stringify({ error: 'Unauthorized' }), {
@@ -64,6 +95,11 @@ const handler = async (req: Request) => {
       headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
     });
   }
+
+  console.log('[MCP] Authentication successful');
+
+  // Register the connection
+  mcpConnectionManager.registerConnection(connectionId, clientIP, userAgent);
 
   // Log request body
   const requestBody = await req.clone().json().catch(() => null);
@@ -80,6 +116,9 @@ const handler = async (req: Request) => {
           longitude: z.number().optional().describe("Longitude (alternative to address)"),
         },
         async ({ address, latitude, longitude }) => {
+          // Update connection activity
+          mcpConnectionManager.updateActivity(connectionId);
+          
           // Create a logger that captures messages for the response
           const messages: string[] = [];
           const log = (type: string, message: string) => {
@@ -158,6 +197,9 @@ const handler = async (req: Request) => {
           address: z.string().describe("Address to geocode"),
         },
         async ({ address }) => {
+          // Update connection activity
+          mcpConnectionManager.updateActivity(connectionId);
+          
           const messages: string[] = [];
           const log = (type: string, message: string) => {
             messages.push(`[${type.toUpperCase()}] ${message}`);
@@ -210,6 +252,9 @@ const handler = async (req: Request) => {
           url: z.string().describe("Listing URL to analyze"),
         },
         async ({ url }) => {
+          // Update connection activity
+          mcpConnectionManager.updateActivity(connectionId);
+          
           const messages: string[] = [];
           const log = (type: string, message: string) => {
             messages.push(`[${type.toUpperCase()}] ${message}`);
@@ -258,9 +303,13 @@ const handler = async (req: Request) => {
         "Get opportunity zone service status and cache information",
         {},
         async () => {
+          // Update connection activity
+          mcpConnectionManager.updateActivity(connectionId);
+          
           try {
             const metrics = await opportunityZoneService.getCacheMetricsWithDbCheck();
             const geocodingStats = await geocodingService.getCacheStats();
+            const connectionStats = mcpConnectionManager.getConnectionStats();
             
             // Determine actual service readiness
             const isServiceReady = metrics.isInitialized || (metrics.dbHasData && !metrics.isInitializing);
@@ -280,6 +329,11 @@ const handler = async (req: Request) => {
               "=== Geocoding Cache Status ===",
               `Total cached addresses: ${geocodingStats.totalCached}`,
               `Expired entries: ${geocodingStats.expiredEntries}`,
+              "",
+              "=== MCP Connection Status ===",
+              `Active connections: ${connectionStats.activeConnections}/${connectionStats.maxConnections}`,
+              `Total connections: ${connectionStats.totalConnections}`,
+              `Current connection: ${connectionId}`,
             ].join('\n');
 
             return {
@@ -311,6 +365,14 @@ const handler = async (req: Request) => {
       basePath: "/mcp",
       verboseLogs: true,
       redisUrl: process.env.REDIS_URL,
+      // Add heartbeat support for SSE
+      onConnection: () => {
+        console.log(`[MCP] SSE connection established: ${connectionId}`);
+      },
+      onDisconnection: () => {
+        console.log(`[MCP] SSE connection closed: ${connectionId}`);
+        mcpConnectionManager.closeConnection(connectionId);
+      },
     }
   )(req);
 };

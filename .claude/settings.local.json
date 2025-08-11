@@ -16,7 +16,9 @@
       "Bash(npm run lint:*)",
       "Bash(pkill:*)",
       "Bash(lsof:*)",
-      "Bash(kill:*)"
+      "Bash(kill:*)",
+      "Bash(grep:*)",
+      "Bash(chmod:*)"
     ],
     "deny": []
   }
