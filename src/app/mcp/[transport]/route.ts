@@ -65,6 +65,23 @@ const handler = async (req: Request) => {
   
   console.log(`[MCP] New request from ${clientIP} (${userAgent})`);
   
+  // Block Chrome extension access to prevent unwanted SSE connections
+  if (userAgent.toLowerCase().includes('chrome') && 
+      (userAgent.includes('undici') || userAgent.includes('extension'))) {
+    console.log(`[MCP] Chrome extension blocked from MCP endpoint`);
+    return new Response(JSON.stringify({ 
+      error: 'Chrome extensions are not supported',
+      message: 'Please use the regular API endpoints at /api/opportunity-zones/check instead',
+      redirect: '/api/opportunity-zones/check'
+    }), {
+      status: 403,
+      headers: { 
+        'Content-Type': 'application/json', 
+        'Access-Control-Allow-Origin': '*'
+      },
+    });
+  }
+  
   // Check connection limits and rate limiting
   const connectionCheck = mcpConnectionManager.canAcceptConnection(clientIP, userAgent);
   if (!connectionCheck.allowed) {
