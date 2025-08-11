@@ -66,7 +66,7 @@ async function authenticateRequest(request: NextRequest) {
     // Check if this is a temporary token and validate usage limit
     if (token.startsWith('temp_')) {
       const currentUsage = tempTokenUsage.get(token) || 0;
-      if (currentUsage >= 3) {
+      if (currentUsage >= 5) {
         return { ...accessToken, usageExceeded: true };
       }
       // Don't increment here - only after successful operations
@@ -264,7 +264,7 @@ export async function GET(request: NextRequest) {
       if ((accessToken as any).isTemporary) {
         return NextResponse.json({ 
           error: 'Temporary API key usage limit exceeded',
-          message: 'You have used all 3 requests for this temporary API key. Please create a new temporary key or signup for a free account.',
+          message: 'You have used all 5 requests for this temporary API key. To continue: POST /api/temporary-key to get a new temporary key (or click "Create Temporary API Key" in the Playground), or sign up for a free account at /dashboard for higher limits.',
           code: 'TEMP_KEY_LIMIT_EXCEEDED'
         }, { status: 429 });
       } else {
@@ -277,7 +277,7 @@ export async function GET(request: NextRequest) {
         
         return NextResponse.json({ 
           error: 'Monthly usage limit exceeded',
-          message: `You have used all ${user.monthlyUsageLimit} searches for this month. Usage will reset in ${Math.max(1, daysUntilReset)} days.`,
+          message: `You have used all ${user.monthlyUsageLimit} searches for this month. Usage will reset in ${Math.max(1, daysUntilReset)} days. To continue now, create a new temporary API key via POST /api/temporary-key or upgrade your plan in the dashboard (/dashboard).`,
           code: 'MONTHLY_LIMIT_EXCEEDED'
         }, { status: 429 });
       }
@@ -294,14 +294,14 @@ export async function GET(request: NextRequest) {
         
         // Check if search is allowed for anonymous users
         if (!validationResult.allowed) {
-        return withCors(NextResponse.json(
-          { 
-            error: 'Search limit reached',
-            message: validationResult.message,
-            searchCount: validationResult.searchCount
-          },
-          { status: 429 }
-        ))
+          return withCors(NextResponse.json(
+            { 
+              error: 'Search limit reached',
+              message: validationResult.message,
+              searchCount: validationResult.searchCount
+            },
+            { status: 429 }
+          ))
         }
       }
       

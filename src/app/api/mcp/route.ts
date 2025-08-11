@@ -57,7 +57,7 @@ async function authenticateRequest(request: NextRequest) {
     // Check if this is a temporary token and validate usage limit
     if (token.startsWith('temp_')) {
       const currentUsage = tempTokenUsage.get(token) || 0;
-      if (currentUsage >= 3) {
+      if (currentUsage >= 5) {
         return { ...accessToken, usageExceeded: true };
       }
       // Don't increment here - only after successful operations
@@ -126,31 +126,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Check if token usage is exceeded
-    if ((accessToken as any).usageExceeded) {
-      if ((accessToken as any).isTemporary) {
-        return NextResponse.json({ 
-          error: 'Temporary API key usage limit exceeded',
-          message: 'You have used all 3 requests for this temporary API key. Please create a new temporary key or signup for a free account.',
-          code: 'TEMP_KEY_LIMIT_EXCEEDED'
-        }, { status: 429 });
-      } else {
-        // Calculate days until reset for user messaging
-        const user = (accessToken as any).user;
-        const now = new Date();
-        const daysUntilReset = user.usagePeriodStart 
-          ? Math.ceil((30 * 24 * 60 * 60 * 1000 - (now.getTime() - user.usagePeriodStart.getTime())) / (24 * 60 * 60 * 1000))
-          : 0;
-        
-        return NextResponse.json({ 
-          error: 'Monthly usage limit exceeded',
-          message: `You have used all ${user.monthlyUsageLimit} searches for this month. Usage will reset in ${Math.max(1, daysUntilReset)} days.`,
-          code: 'MONTHLY_LIMIT_EXCEEDED'
-        }, { status: 429 });
-      }
-    }
-
-    // Parse the request body
+    // Parse the request body early so we can allowlist tools that shouldn't be blocked
     const body = await request.json();
     
     // Validate JSON-RPC format
@@ -169,6 +145,33 @@ export async function POST(request: NextRequest) {
     }
 
     const { name, arguments: args } = params;
+
+    // Check if token usage is exceeded, but allow certain tools to remain free/unlimited
+    if ((accessToken as any).usageExceeded) {
+      const freeTools = new Set(['get_listing_address', 'get_oz_status']);
+      if (!freeTools.has(name)) {
+        if ((accessToken as any).isTemporary) {
+          return NextResponse.json({ 
+            error: 'Temporary API key usage limit exceeded',
+            message: 'You have used all 5 requests for this temporary API key. To continue: POST /api/temporary-key to get a new temporary key (or click "Create Temporary API Key" in the Playground), or sign up for a free account at /dashboard for higher limits.',
+            code: 'TEMP_KEY_LIMIT_EXCEEDED'
+          }, { status: 429 });
+        } else {
+          // Calculate days until reset for user messaging
+          const user = (accessToken as any).user;
+          const now = new Date();
+          const daysUntilReset = user.usagePeriodStart 
+            ? Math.ceil((30 * 24 * 60 * 60 * 1000 - (now.getTime() - user.usagePeriodStart.getTime())) / (24 * 60 * 60 * 1000))
+            : 0;
+          
+          return NextResponse.json({ 
+            error: 'Monthly usage limit exceeded',
+            message: `You have used all ${user.monthlyUsageLimit} searches for this month. Usage will reset in ${Math.max(1, daysUntilReset)} days. To continue now, create a new temporary API key via POST /api/temporary-key or upgrade your plan in the dashboard (/dashboard).`,
+            code: 'MONTHLY_LIMIT_EXCEEDED'
+          }, { status: 429 });
+        }
+      }
+    }
 
     // Create a logger that captures messages for the response
     const messages: string[] = [];
@@ -366,7 +369,7 @@ export async function POST(request: NextRequest) {
               },
             ],
           };
-          // This tool does not affect usage counts
+          // This tool is free and does not count toward usage limits
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'Unknown error';
           const status = errorMessage === 'NOT_FOUND' ? 'Address not found' : `Error: ${errorMessage}`;
