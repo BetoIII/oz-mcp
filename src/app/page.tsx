@@ -28,6 +28,7 @@ import { motion } from "framer-motion"
 import { Footer } from "@/components/Footer"
 import { Navbar } from "@/components/Navbar"
 import { PlacesAutocomplete } from "@/components/PlacesAutocomplete"
+import { MapPreview } from "@/components/MapPreview"
 
 export default function HomePage() {
   const [searchValue, setSearchValue] = useState("")
@@ -436,6 +437,23 @@ export default function HomePage() {
                     {searchResult.method && ` • Method: ${searchResult.method}`}
                   </p>
                 )}
+              </motion.div>
+            )}
+
+            {/* Map Preview - Show when search result has coordinates */}
+            {searchResult && searchResult.coordinates && !searchResult.error && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mt-4"
+              >
+                <MapPreview
+                  latitude={searchResult.coordinates.lat}
+                  longitude={searchResult.coordinates.lon}
+                  address={searchResult.address}
+                  isOpportunityZone={searchResult.isOpportunityZone}
+                  tractId={searchResult.tractId}
+                />
               </motion.div>
             )}
 
