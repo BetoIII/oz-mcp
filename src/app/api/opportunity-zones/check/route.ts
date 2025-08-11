@@ -230,6 +230,10 @@ async function saveTracker(tracker: SearchTracker) {
 }
 
 export async function GET(request: NextRequest) {
+  const withCors = (res: NextResponse) => {
+    res.headers.set('Access-Control-Allow-Origin', '*')
+    return res
+  }
   const searchParams = request.nextUrl.searchParams
   const lat = searchParams.get('lat')
   const lon = searchParams.get('lon')
@@ -238,10 +242,10 @@ export async function GET(request: NextRequest) {
 
   // Check if we have either coordinates or address
   if (!address && (!lat || !lon)) {
-    return NextResponse.json(
+    return withCors(NextResponse.json(
       { error: 'Missing required parameters: either address OR (lat and lon)' },
       { status: 400 }
-    )
+    ))
   }
 
   let latitude: number;
@@ -290,14 +294,14 @@ export async function GET(request: NextRequest) {
         
         // Check if search is allowed for anonymous users
         if (!validationResult.allowed) {
-          return NextResponse.json(
-            { 
-              error: 'Search limit reached',
-              message: validationResult.message,
-              searchCount: validationResult.searchCount
-            },
-            { status: 429 }
-          )
+        return withCors(NextResponse.json(
+          { 
+            error: 'Search limit reached',
+            message: validationResult.message,
+            searchCount: validationResult.searchCount
+          },
+          { status: 429 }
+        ))
         }
       }
       
@@ -306,7 +310,7 @@ export async function GET(request: NextRequest) {
       
       // Handle address not found gracefully - don't increment usage
       if (geocodeResult.notFound) {
-        return NextResponse.json({
+        return withCors(NextResponse.json({
           addressNotFound: true,
           address: address,
           message: 'Address not found',
@@ -316,7 +320,7 @@ export async function GET(request: NextRequest) {
             '456 Oak Avenue, Los Angeles, CA 90210',
             '789 Broadway, Chicago, IL'
           ]
-        }, { status: 200 })
+        }, { status: 200 }))
       }
       
       latitude = geocodeResult.latitude;
@@ -328,17 +332,17 @@ export async function GET(request: NextRequest) {
       geocodedAddress = `${latitude}, ${longitude}`;
 
       if (isNaN(latitude) || isNaN(longitude)) {
-        return NextResponse.json(
+        return withCors(NextResponse.json(
           { error: 'Invalid coordinates: lat and lon must be valid numbers' },
           { status: 400 }
-        )
+        ))
       }
 
       if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
-        return NextResponse.json(
+        return withCors(NextResponse.json(
           { error: 'Invalid coordinates: lat must be between -90 and 90, lon must be between -180 and 180' },
           { status: 400 }
-        )
+        ))
       }
     }
 
@@ -405,6 +409,8 @@ export async function GET(request: NextRequest) {
         }
       }, { status: 200 });
 
+      mcpResponse.headers.set('Access-Control-Allow-Origin', '*')
+
       // Save the updated tracker to cookie if we have validation result (for anonymous users)
       if (validationResult && validationResult.tracker) {
         mcpResponse.cookies.set(COOKIE_NAME, JSON.stringify(validationResult.tracker), {
@@ -467,6 +473,7 @@ export async function GET(request: NextRequest) {
     }
 
     const finalResponse = NextResponse.json(response, { status: 200 })
+    finalResponse.headers.set('Access-Control-Allow-Origin', '*')
     
     // Save the updated tracker to cookie if we have validation result (for anonymous users)
     if (validationResult && validationResult.tracker) {
@@ -496,7 +503,7 @@ export async function GET(request: NextRequest) {
     
     // Don't increment usage on errors
     
-    return NextResponse.json(
+    return withCors(NextResponse.json(
       { 
         error: 'Failed to check opportunity zone',
         details: error instanceof Error ? error.message : 'Unknown error',
@@ -510,6 +517,17 @@ export async function GET(request: NextRequest) {
         }
       },
       { status: 500 }
-    )
+    ))
   }
 } 
+
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 204,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-OZ-Extension',
+    }
+  })
+}
