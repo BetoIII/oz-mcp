@@ -8,11 +8,50 @@ declare namespace google {
   namespace maps {
     class Map {
       constructor(mapDiv: Element | null, opts?: MapOptions)
+      setCenter(latLng: LatLng | LatLngLiteral): void
+    }
+
+    class Marker {
+      constructor(opts?: MarkerOptions)
+      setMap(map: Map | null): void
+      setPosition(position: LatLng | LatLngLiteral): void
+      setTitle(title: string): void
+    }
+
+    interface MarkerOptions {
+      position?: LatLng | LatLngLiteral
+      map?: Map
+      title?: string
+      icon?: string | MarkerIcon
+    }
+
+    interface MarkerIcon {
+      url: string
+      scaledSize?: Size
+      anchor?: Point
+    }
+
+    class Size {
+      constructor(width: number, height: number)
+    }
+
+    class Point {
+      constructor(x: number, y: number)
     }
     
     interface MapOptions {
       center?: LatLng | LatLngLiteral
       zoom?: number
+      mapTypeControl?: boolean
+      fullscreenControl?: boolean
+      streetViewControl?: boolean
+      styles?: MapTypeStyle[]
+    }
+
+    interface MapTypeStyle {
+      featureType?: string
+      elementType?: string
+      stylers?: Array<{ visibility?: string; [key: string]: any }>
     }
     
     class LatLng {

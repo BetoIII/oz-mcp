@@ -50,8 +50,11 @@ export function PlacesAutocomplete({
 
     const initializeAutocomplete = async () => {
       try {
-        // Import places library
-        await google.maps.importLibrary('places')
+        // Check if places library is available (it should be since we loaded it in the script)
+        if (!google.maps.places) {
+          console.error('Google Places library not available')
+          return
+        }
 
         // Create a new Autocomplete instance attached to the input
         const autocomplete = new (google.maps.places as any).Autocomplete(inputRef.current, {
