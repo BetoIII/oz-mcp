@@ -220,6 +220,18 @@ export default function PlaygroundClient() {
     }
   };
 
+  // Auto-check service status when access token becomes available
+  useEffect(() => {
+    if (accessToken) {
+      // Check status with a small delay to allow UI to render
+      const timer = setTimeout(() => {
+        checkServiceStatus();
+      }, 500);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [accessToken]);
+
   // Auto-refresh status when access token is available
   useEffect(() => {
     if (accessToken && autoRefreshStatus) {
