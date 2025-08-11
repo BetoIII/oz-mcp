@@ -365,14 +365,6 @@ const handler = async (req: Request) => {
       basePath: "/mcp",
       verboseLogs: true,
       redisUrl: process.env.REDIS_URL,
-      // Add heartbeat support for SSE
-      onConnection: () => {
-        console.log(`[MCP] SSE connection established: ${connectionId}`);
-      },
-      onDisconnection: () => {
-        console.log(`[MCP] SSE connection closed: ${connectionId}`);
-        mcpConnectionManager.closeConnection(connectionId);
-      },
     }
   )(req);
 };
