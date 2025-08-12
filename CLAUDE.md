@@ -18,20 +18,39 @@ This is a Next.js-based MCP (Model Context Protocol) server that provides opport
 - **OpportunityZoneService** (`src/lib/services/opportunity-zones.ts`): Main service coordinating spatial queries
 - **PostGISOpportunityZoneService** (`src/lib/services/postgis-opportunity-zones.ts`): PostGIS-optimized spatial operations
 - **GeocodingService** (`src/lib/services/geocoding.ts`): Address-to-coordinate conversion with caching
+- **ListingAddressService** (`src/lib/services/listing-address.ts`): Real estate listing URL address extraction service
 
 ### MCP Integration
-- **Main MCP Endpoint**: `src/app/api/mcp/route.ts` - Implements JSON-RPC protocol
+- **Main MCP Endpoint**: `src/app/api/mcp/route.ts` - Legacy JSON-RPC implementation (still active)
+- **Vercel MCP Adapter**: `src/app/mcp/[transport]/route.ts` - Modern MCP handler with enhanced connection management
 - **Transport**: Supports both Server-Sent Events (SSE) and HTTP streaming via Vercel MCP adapter
 - **Available Tools**:
   - `check_opportunity_zone`: Check coordinates or addresses for OZ status (includes Google Maps link)
   - `geocode_address`: Convert addresses to coordinates
-  - `get_oz_status`: Get service status and metrics
+  - `get_listing_address`: Extract addresses from real estate listing URLs (Zillow, Realtor.com, etc.)
+  - `get_oz_status`: Get service status and metrics including MCP connection status
+
+### MCP Connection Management & Monitoring
+- **Connection Manager** (`src/lib/mcp-connection-manager.ts`): Advanced connection pooling and rate limiting
+- **Connection Limits**: Maximum 10 concurrent connections with automatic cleanup
+- **Rate Limiting**: 30 requests per minute per IP with rolling windows
+- **Security**: Blocks Chrome extensions and undici clients from SSE endpoints
+- **Monitoring Dashboard**: Real-time connection monitoring at `/monitor`
+- **CLI Tools**: `scripts/monitor-mcp.sh` for command-line monitoring and alerts
+- **Documentation**: Comprehensive monitoring guide in `MCP_MONITORING.md`
+
+### Frontend Features
+- **Google Maps Integration**: Interactive map display with opportunity zone visualization
+- **Places Autocomplete**: Google Places API integration for address input
+- **Map Preview**: Color-coded markers (green for OZ, red for non-OZ) with status overlays
+- **Responsive UI**: Mobile-friendly interface using Tailwind CSS and shadcn/ui components
 
 ### Authentication & Authorization
 - **OAuth 2.1**: Full implementation with PKCE support in `src/app/api/oauth/`
 - **NextAuth**: Session management in `src/app/auth.ts`
 - **Rate Limiting**: Monthly usage limits (5 free searches, higher for authenticated users)
-- **API Keys**: Both temporary (3 uses) and persistent keys supported
+- **API Keys**: Both temporary (5 uses) and persistent keys supported
+- **Usage Tracking**: 30-day rolling windows for usage limit enforcement
 
 ## Common Development Commands
 
@@ -40,10 +59,10 @@ This is a Next.js-based MCP (Model Context Protocol) server that provides opport
 npm run dev                    # Start development server
 
 # Testing
-npm run test                   # Run tests in watch mode
-npm run test:run              # Run tests once
-npm run test:ui               # Run tests with UI
-npm run test:coverage         # Run tests with coverage
+npm run test                   # Run all tests using tsx test runner
+npm run test:oz               # Run Google Maps and MCP tests
+npm run test:critical         # Run critical business logic tests
+npm run test:all              # Run all test files
 
 # Database Operations
 npx prisma migrate deploy      # Apply database migrations
@@ -85,17 +104,24 @@ Required environment variables:
 
 - **Frontend**: Next.js App Router structure in `src/app/`
 - **Components**: Reusable UI components in `src/components/` using shadcn/ui
+  - `MapPreview.tsx`: Interactive Google Maps component with OZ markers
+  - `PlacesAutocomplete.tsx`: Google Places API integration
 - **Services**: Business logic in `src/lib/services/`
+  - `listing-address.ts`: Extract addresses from real estate listing URLs
+  - `mcp-connection-manager.ts`: MCP connection pooling and rate limiting
 - **API Routes**: REST and MCP endpoints in `src/app/api/`
+- **MCP Endpoints**: Both legacy (`src/app/api/mcp/`) and modern (`src/app/mcp/[transport]/`)
 - **Database**: Prisma schema and migrations in `prisma/`
-- **Scripts**: Data processing utilities in `scripts/`
+- **Scripts**: Data processing utilities and monitoring tools in `scripts/`
+- **Monitoring**: Real-time dashboards and CLI tools
+- **Types**: Google Maps and custom TypeScript definitions in `src/types/`
 
 ## Testing & Quality
 
 ### Test Framework
-- **Vitest**: Fast unit/integration testing with TypeScript support
-- **MSW**: Mock Service Worker for HTTP request mocking
+- **Node.js Test Runner**: Native test runner with tsx for TypeScript support
 - **Test Coverage**: Focus on API routes, services, and critical business logic
+- **Real Integration**: Tests use actual database connections for realistic testing
 
 ### Test Structure
 - **Unit Tests**: Services (`src/lib/services/`) and utilities (`src/lib/utils.ts`)
@@ -104,26 +130,27 @@ Required environment variables:
 
 ### Running Tests
 ```bash
-npm run test           # Watch mode for development
-npm run test:run       # Single run for CI/CD
-npm run test:ui        # Visual test interface
-npm run test:coverage  # Generate coverage reports
+npm run test           # Run all tests using tsx test runner
+npm run test:critical  # Run critical business logic tests only  
+npm run test:oz        # Run Google Maps and MCP integration tests
+npm run test:all       # Run all test files (same as npm run test)
 ```
 
 ### Test Categories Implemented
-**High Priority (100% coverage target):**
-- API authentication and rate limiting
-- MCP JSON-RPC protocol handling  
-- Geocoding service with caching
-- OAuth 2.1 PKCE token exchange
-- Opportunity zone spatial queries
+**Critical Business Logic Tests:**
+- Monthly usage limit validation with 30-day rolling windows (`tests/business-logic.monthly-limits.test.ts`)
+- PostGIS spatial query services (`tests/services.postgis.test.ts`)
+- Authentication utilities and database health checks (`tests/auth-utils.test.ts`)
+- Cookie-based rate limiting with 7-day lockouts (`tests/rate-limiting.cookie-tracker.test.ts`)
+- Monthly usage reset logic with boundary handling (`tests/usage-reset.monthly-logic.test.ts`)
 
-**Low Priority:**
-- Service status endpoints
-- Utility functions
-- Error handling paths
+**Integration Tests:**
+- Google Maps URL generation (`tests/utils.maps-url.test.ts`)
+- MCP endpoint Google Maps link inclusion (`tests/api.mcp.maps-link.e2e.test.ts`)
+- Geocoding service caching (`tests/geocoding.test.ts`)
+- Listing address extraction (`tests/listingAddressService.test.ts`)
 
-Always run `npm run test:run` before committing changes. For spatial query testing, use the playground at `/playground` or the MCP status endpoint to verify PostGIS functionality.
+Always run `npm run test` before committing changes. For spatial query testing, use the playground at `/playground` or the MCP status endpoint to verify PostGIS functionality.
 
 ## Deployment Notes
 
@@ -154,4 +181,33 @@ For Claude Desktop integration:
     }
   }
 }
+```
+
+## Monitoring & Operations
+
+### MCP Connection Monitoring
+- **Dashboard**: Real-time monitoring at `/monitor`
+- **CLI Tool**: `scripts/monitor-mcp.sh` for command-line monitoring
+- **API Endpoints**: 
+  - `/api/mcp-monitor` - Connection statistics and health
+  - `/api/mcp-heartbeat` - SSE heartbeat stream
+- **Documentation**: Complete monitoring guide in `MCP_MONITORING.md`
+
+### Connection Management Features
+- **Connection Limits**: Max 10 concurrent connections
+- **Rate Limiting**: 30 requests/minute per IP
+- **Security**: Blocks Chrome extensions and undici clients from SSE
+- **Automatic Cleanup**: Stale connection removal with heartbeat monitoring
+- **Real-time Stats**: Active connections, rate limits, and health metrics
+
+### Key Monitoring Commands
+```bash
+# Start continuous monitoring
+./scripts/monitor-mcp.sh monitor
+
+# Check health once
+./scripts/monitor-mcp.sh health
+
+# View connection stats
+curl https://your-domain.com/api/mcp-monitor
 ```

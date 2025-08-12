@@ -7,9 +7,10 @@ A Next.js-based MCP (Model Context Protocol) server that provides opportunity zo
 ### Core MCP Functionality
 - **Opportunity Zone Lookup**: Check if coordinates or addresses are in opportunity zones
 - **Address Geocoding**: Convert addresses to coordinates using geocode.maps.co  
+- **Listing Address Extraction**: Extract normalized addresses from real estate listing URLs (Zillow, Realtor.com, etc.)
 - **PostGIS Spatial Optimization**: Fast point-in-polygon lookups with spatial indexing (91.9% geometry compression)
 - **Data Caching**: Persistent caching of GeoJSON data and geocoding results
-- **Rate Limiting**: Built-in request throttling to prevent API abuse
+- **Advanced Rate Limiting**: 30 requests/minute per IP with connection pooling and monitoring
 
 ### OAuth 2.1 Integration
 - **PKCE Support**: Secure authorization code flow with code challenges
@@ -19,7 +20,10 @@ A Next.js-based MCP (Model Context Protocol) server that provides opportunity zo
 
 ### Web Interface
 - **Interactive Dashboard**: Manage API keys, view usage statistics
-- **Real-time Testing**: Test coordinates and addresses directly in the browser
+- **Google Maps Integration**: Interactive map display with color-coded opportunity zone markers
+- **Places Autocomplete**: Google Places API integration for enhanced address input
+- **Real-time Testing**: Test coordinates and addresses directly in the browser with visual feedback
+- **MCP Connection Monitoring**: Real-time dashboard at `/monitor` for connection management
 - **Developer Documentation**: Complete OAuth flow examples and API reference
 - **Responsive Design**: Mobile-friendly interface with modern UI components
 
@@ -115,7 +119,7 @@ await use_mcp_tool("check_opportunity_zone", {
 - Data version and metadata
 
 ### `geocode_address`
-Convert an address to coordinates and check opportunity zone status.
+Convert an address to coordinates with caching for improved performance.
 
 **Parameters:** 
 - `address` (string): Full address to geocode
@@ -127,20 +131,11 @@ await use_mcp_tool("geocode_address", {
 });
 ```
 
-### `validate_search_params`
-Validate search parameters before making requests.
-
-**Parameters:**
-- `params` (object): Search parameters to validate
-
-### `get_api_status`
-Get current API status and rate limiting information.
-
 ### `get_listing_address`
-Extract a normalized street address from a listing URL.
+Extract a normalized U.S. mailing address from real estate listing URLs. Supports Zillow, Realtor.com, and other major real estate sites.
 
 **Parameters:**
-- `url` (string): Listing URL to analyze
+- `url` (string): Real estate listing URL to analyze
 
 **Example:**
 ```typescript
@@ -148,6 +143,27 @@ await use_mcp_tool("get_listing_address", {
   url: "https://www.zillow.com/homedetails/123-Main-St-Somecity-ST-12345/1234567_zpid/"
 });
 ```
+
+**Supported Sites:**
+- Zillow
+- Realtor.com
+- Redfin
+- And other major real estate platforms
+
+### `get_oz_status`
+Get comprehensive service status including opportunity zone data, geocoding cache, and MCP connection statistics.
+
+**Example:**
+```typescript
+await use_mcp_tool("get_oz_status", {});
+```
+
+**Response includes:**
+- Service initialization status
+- Data version and feature count
+- Geocoding cache statistics
+- Active MCP connections
+- Connection limits and rate limiting status
 
 ## 🔐 OAuth 2.1 Implementation
 
@@ -195,44 +211,73 @@ Key tables:
 - `oauth_authorization_codes`: Temporary authorization codes
 - `oauth_access_tokens`: Issued access tokens
 
-## ⚡ Performance
+## ⚡ Performance & Monitoring
 
 - **Spatial Queries**: Sub-100ms response times for coordinate lookups
 - **Geocoding Cache**: Persistent caching reduces external API calls
-- **Connection Pooling**: Efficient database connection management
-- **Rate Limiting**: Configurable limits prevent API abuse
+- **Connection Pooling**: Advanced MCP connection management with 10 concurrent connection limit
+- **Rate Limiting**: 30 requests/minute per IP with rolling windows
+- **Real-time Monitoring**: Connection dashboard at `/monitor` with live statistics
+- **Automated Cleanup**: Stale connection detection and removal
+- **Security**: Chrome extension and undici client blocking for SSE endpoints
 
 ## 📖 API Documentation
 
 ### REST Endpoints
 
-- `GET /api/opportunity-zones/check` - Check coordinates
-- `POST /api/opportunity-zones/geocode` - Geocode address
-- `POST /api/listing-address` - Extract listing address from a URL
-- `GET /api/opportunity-zones/status` - API status
+- `GET /api/opportunity-zones/check` - Check coordinates for opportunity zone status
+- `POST /api/opportunity-zones/geocode` - Geocode address to coordinates
+- `POST /api/listing-address` - Extract normalized address from listing URL
+- `GET /api/opportunity-zones/status` - API status and service metrics
 - `POST /api/oauth/register` - Register OAuth client
-- `POST /api/oauth/token` - Exchange tokens
+- `POST /api/oauth/token` - Exchange authorization codes for tokens
+- `GET /api/mcp-monitor` - MCP connection statistics and health
+- `GET /api/mcp-heartbeat` - SSE heartbeat stream for connection monitoring
 
-### Rate Limits
+### MCP Endpoints
 
-- **Free tier**: 100 requests per hour
-- **Authenticated**: 1000 requests per hour  
-- **Premium**: Custom limits available
+- `/api/mcp` - Legacy JSON-RPC MCP implementation
+- `/mcp/sse` - Modern Vercel MCP adapter with SSE transport
+- `/mcp/http-stream` - HTTP streaming transport
+
+### Rate Limits & Usage
+
+- **Temporary Keys**: 5 requests per key
+- **Authenticated Users**: 5 free searches per month (rolling 30-day window)
+- **MCP Connections**: Maximum 10 concurrent connections
+- **Rate Limiting**: 30 requests per minute per IP address
+- **Premium**: Custom limits available through dashboard
 
 ## 🧪 Testing
 
 ```bash
-# Run all tests
-npm test
+# Run all tests using Node.js test runner
+npm run test
 
-# Test specific functionality
-npm run test:oauth
-npm run test:opportunity-zones
-npm run test:mcp
+# Run critical business logic tests
+npm run test:critical
 
-# Load testing
-npm run test:load
+# Run Google Maps and MCP integration tests
+npm run test:oz
+
+# Run all test files
+npm run test:all
 ```
+
+### Test Categories
+
+**Critical Business Logic:**
+- Monthly usage limits with 30-day rolling windows
+- PostGIS spatial query performance and accuracy
+- Authentication utilities and security
+- Rate limiting and connection management
+- Usage tracking and reset logic
+
+**Integration Tests:**
+- Google Maps URL generation and embedding
+- MCP tool responses and error handling
+- Geocoding service with caching
+- Real estate listing address extraction
 
 ## 🚀 Deployment
 
@@ -251,6 +296,47 @@ GEOCODING_API_KEY=your-geocoding-key
 NEXTAUTH_SECRET=your-secret-key
 NEXTAUTH_URL=https://your-domain.com
 ```
+
+## 📊 Monitoring & Operations
+
+### MCP Connection Monitoring
+
+The application includes comprehensive monitoring capabilities for MCP connections:
+
+- **Real-time Dashboard**: Visit `/monitor` for live connection statistics
+- **Connection Management**: Automatic cleanup of stale connections with heartbeat monitoring
+- **Rate Limit Tracking**: Per-IP request monitoring with rolling windows
+- **Security Monitoring**: Detection and blocking of unwanted clients (Chrome extensions, undici)
+
+### CLI Monitoring Tool
+
+```bash
+# Make the script executable
+chmod +x scripts/monitor-mcp.sh
+
+# Start continuous monitoring
+./scripts/monitor-mcp.sh monitor
+
+# Check health once
+./scripts/monitor-mcp.sh health
+
+# View recent logs
+./scripts/monitor-mcp.sh logs
+```
+
+### API Monitoring Endpoints
+
+```bash
+# Get connection statistics
+curl https://your-domain.com/api/mcp-monitor
+
+# Check specific stats
+curl https://your-domain.com/api/mcp-monitor?action=connections
+curl https://your-domain.com/api/mcp-monitor?action=ratelimits
+curl https://your-domain.com/api/mcp-monitor?action=health
+```
+
+For detailed monitoring documentation, see `MCP_MONITORING.md`.
 
 ## 🤝 Contributing
 
