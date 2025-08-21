@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { OpportunityZoneService } from '@/lib/services/opportunity-zones'
 import { geocodingService, GeocodingRateLimitError } from '@/lib/services/geocoding'
+import { generateGoogleMapsUrl } from '@/lib/utils'
 import { cookies } from 'next/headers'
 import { prisma } from '@/app/prisma'
 
@@ -367,7 +368,11 @@ export async function GET(request: NextRequest) {
         mcpText += ` not in an opportunity zone.`;
       }
       
-      mcpText += `\nData version: ${result.metadata.version}`;
+      // Generate Google Maps URL for the location
+      const googleMapsUrl = generateGoogleMapsUrl(latitude, longitude, address || undefined)
+      mcpText += `\n📍 View on Google Maps: ${googleMapsUrl}`;
+      
+      mcpText += `\n\nData version: ${result.metadata.version}`;
       mcpText += `\nLast updated: ${result.metadata.lastUpdated}`;
       mcpText += `\nFeature count: ${result.metadata.featureCount}`;
       
@@ -453,6 +458,9 @@ export async function GET(request: NextRequest) {
       performance.info = 'Excellent query performance - under 100ms'
     }
 
+    // Generate Google Maps URL for the location
+    const googleMapsUrl = generateGoogleMapsUrl(latitude, longitude, address || undefined)
+
     const response = {
       coordinates: {
         latitude,
@@ -461,6 +469,7 @@ export async function GET(request: NextRequest) {
       ...(address && { geocodedAddress }),
       isInOpportunityZone: result.isInZone,
       opportunityZoneId: result.zoneId || null,
+      googleMapsUrl,
       metadata: {
         queryTime: `${queryTime}ms`,
         method: result.method || 'unknown',

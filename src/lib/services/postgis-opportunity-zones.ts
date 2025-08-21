@@ -334,4 +334,97 @@ export class PostGISOpportunityZoneService {
   getSimplificationTolerance(): number {
     return this.simplificationTolerance
   }
+
+  /**
+   * Fetch opportunity zone shapes within viewport bounds for map display
+   */
+  async getShapesInBounds(
+    bounds: { north: number; south: number; east: number; west: number },
+    zoomLevel: number,
+    log: LogFn = defaultLog
+  ): Promise<{
+    type: 'FeatureCollection';
+    features: Array<{
+      type: 'Feature';
+      properties: {
+        geoid: string;
+        name: string;
+        state: string;
+        county: string;
+      };
+      geometry: any;
+    }>;
+  }> {
+    const isPostGISAvailable = await this.checkPostGISAvailability(log)
+    
+    if (!isPostGISAvailable) {
+      return {
+        type: 'FeatureCollection',
+        features: []
+      }
+    }
+
+    try {
+      // Adjust simplification based on zoom level for better performance
+      const simplificationTolerance = this.getSimplificationToleranceForZoom(zoomLevel)
+      
+      log("info", `🗺️ Fetching shapes within bounds: N${bounds.north}, S${bounds.south}, E${bounds.east}, W${bounds.west} at zoom ${zoomLevel}`);
+      
+      // Query to get shapes within viewport with dynamic simplification
+      const result = await prisma.$queryRaw<{
+        geoid: string;
+        geometry: string;
+      }[]>`
+        SELECT 
+          geoid,
+          ST_AsGeoJSON(
+            ST_SimplifyPreserveTopology(
+              COALESCE("simplifiedGeom", "originalGeom"), 
+              ${simplificationTolerance}
+            )
+          ) as geometry
+        FROM "OpportunityZone"
+        WHERE ST_Intersects(
+          COALESCE("simplifiedGeom", "originalGeom"),
+          ST_MakeEnvelope(${bounds.west}, ${bounds.south}, ${bounds.east}, ${bounds.north}, 4326)
+        )
+        LIMIT 100
+      `
+
+      const features = result.map(row => ({
+        type: 'Feature' as const,
+        properties: {
+          geoid: row.geoid,
+          name: row.geoid, // Use geoid as name for now
+          state: 'California', // Hardcoded for now, could be extracted from geoid
+          county: 'Los Angeles' // Hardcoded for now, could be extracted from geoid
+        },
+        geometry: JSON.parse(row.geometry)
+      }))
+
+      log("success", `📍 Found ${features.length} opportunity zones in viewport`);
+      
+      return {
+        type: 'FeatureCollection',
+        features
+      }
+    } catch (error) {
+      log("error", `❌ Failed to fetch shapes in bounds: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      return {
+        type: 'FeatureCollection',
+        features: []
+      }
+    }
+  }
+
+  /**
+   * Get simplification tolerance based on zoom level
+   */
+  private getSimplificationToleranceForZoom(zoom: number): number {
+    if (zoom < 10) return 0.005   // Very simplified for far zoom
+    if (zoom < 12) return 0.002   // Simplified for medium zoom
+    if (zoom < 14) return 0.001   // Default simplification
+    if (zoom < 16) return 0.0005  // More detail for close zoom
+    return 0.0001                 // Maximum detail for very close zoom
+  }
 }
