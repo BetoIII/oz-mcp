@@ -19,7 +19,8 @@
       "Bash(kill:*)",
       "Bash(grep:*)",
       "Bash(chmod:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(npm run test:*)"
     ],
     "deny": []
   }
