@@ -408,7 +408,7 @@ export default function HomePage() {
                     </span>
                   </div>
                   {!searchResult.error && (
-                    <Badge variant="secondary">Zone: {searchResult.tractId}</Badge>
+                    <Badge variant="secondary">Census Tract: {searchResult.tractId}</Badge>
                   )}
                 </div>
                 
@@ -430,13 +430,6 @@ export default function HomePage() {
                   </div>
                 )}
                 
-                {!searchResult.error && (
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    Address: {searchResult.address}
-                    {searchResult.queryTime && ` • Query Time: ${searchResult.queryTime}`}
-                    {searchResult.method && ` • Method: ${searchResult.method}`}
-                  </p>
-                )}
               </motion.div>
             )}
 
