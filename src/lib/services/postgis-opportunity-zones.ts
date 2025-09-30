@@ -336,6 +336,89 @@ export class PostGISOpportunityZoneService {
   }
 
   /**
+   * Fetch opportunity zone shapes by specific zone IDs for Chrome extension
+   */
+  async getShapesByZoneIds(
+    zoneIds: string[],
+    log: LogFn = defaultLog
+  ): Promise<{
+    type: 'FeatureCollection';
+    features: Array<{
+      type: 'Feature';
+      properties: {
+        geoid: string;
+        CENSUSTRAC: string;
+        id: string;
+        name: string;
+        state: string;
+        county: string;
+      };
+      geometry: any;
+    }>;
+  }> {
+    const isPostGISAvailable = await this.checkPostGISAvailability(log)
+
+    if (!isPostGISAvailable) {
+      return {
+        type: 'FeatureCollection',
+        features: []
+      }
+    }
+
+    if (!zoneIds || zoneIds.length === 0) {
+      return {
+        type: 'FeatureCollection',
+        features: []
+      }
+    }
+
+    try {
+      log("info", `🔍 Fetching shapes for ${zoneIds.length} zone IDs: ${zoneIds.slice(0, 3).join(', ')}${zoneIds.length > 3 ? '...' : ''}`);
+
+      // Query to get shapes for specific zone IDs
+      const result = await prisma.$queryRaw<{
+        geoid: string;
+        geometry: string;
+      }[]>`
+        SELECT
+          geoid,
+          ST_AsGeoJSON(
+            COALESCE("simplifiedGeom", "originalGeom")
+          ) as geometry
+        FROM "OpportunityZone"
+        WHERE geoid = ANY(${zoneIds}::text[])
+        ORDER BY geoid
+      `
+
+      const features = result.map(row => ({
+        type: 'Feature' as const,
+        properties: {
+          geoid: row.geoid,
+          CENSUSTRAC: row.geoid, // Chrome extension expects this field
+          id: row.geoid, // Chrome extension expects this field
+          name: row.geoid, // Use geoid as name for now
+          state: 'California', // Hardcoded for now, could be extracted from geoid
+          county: 'Los Angeles' // Hardcoded for now, could be extracted from geoid
+        },
+        geometry: JSON.parse(row.geometry)
+      }))
+
+      log("success", `📍 Found ${features.length}/${zoneIds.length} opportunity zone shapes`);
+
+      return {
+        type: 'FeatureCollection',
+        features
+      }
+    } catch (error) {
+      log("error", `❌ Failed to fetch shapes by zone IDs: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      return {
+        type: 'FeatureCollection',
+        features: []
+      }
+    }
+  }
+
+  /**
    * Fetch opportunity zone shapes within viewport bounds for map display
    */
   async getShapesInBounds(
