@@ -6,6 +6,7 @@ import { opportunityZoneService } from '@/lib/services/opportunity-zones';
 import { geocodingService } from '@/lib/services/geocoding';
 import { extractAddressFromUrl } from '@/lib/services/listing-address';
 import { mcpConnectionManager, getClientIP, generateConnectionId } from '@/lib/mcp-connection-manager';
+import { generateGoogleMapsUrl } from '@/lib/utils';
 
 // Authentication helper
 async function authenticateRequest(request: NextRequest) {
@@ -177,17 +178,22 @@ const handler = async (req: Request) => {
 
             // Check if point is in an opportunity zone
             const result = await opportunityZoneService.checkPoint(coords.latitude, coords.longitude, log);
-            
+
             // Only true if both conditions are met to avoid contradictory messages
             const isInOZ = result.isInZone && result.zoneId;
-            
-            const responseText = address 
+
+            const responseText = address
               ? `Address "${address}" (${coords.latitude}, ${coords.longitude}) is ${isInOZ ? 'in' : 'not in'} an opportunity zone.`
               : `Point (${coords.latitude}, ${coords.longitude}) is ${isInOZ ? 'in' : 'not in'} an opportunity zone.`;
+
+            // Generate Google Maps URL for the location
+            const mapUrl = generateGoogleMapsUrl(coords.latitude, coords.longitude, address);
 
             const fullResponse = [
               responseText,
               isInOZ ? `Zone ID: ${result.zoneId}` : '',
+              `📍 View on Google Maps: ${mapUrl}`,
+              '',
               `Data version: ${result.metadata.version}`,
               `Last updated: ${result.metadata.lastUpdated.toISOString()}`,
               `Feature count: ${result.metadata.featureCount}`,
