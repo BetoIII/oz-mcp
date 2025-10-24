@@ -128,6 +128,24 @@ const handler = async (req: Request) => {
   const requestBody = await req.clone().json().catch(() => null);
   console.log('[MCP] Request body:', requestBody);
 
+  // Set up connection monitoring - force close idle connections periodically
+  const monitorInterval = setInterval(() => {
+    const closedCount = mcpConnectionManager.forceCloseIdleConnections();
+    if (closedCount > 0) {
+      console.log(`[MCP] Monitoring: Force closed ${closedCount} idle connections`);
+    }
+  }, 30000); // Check every 30 seconds
+
+  // Clean up monitor on response finish
+  const originalResponse = req as any;
+  if (originalResponse.signal) {
+    originalResponse.signal.addEventListener('abort', () => {
+      clearInterval(monitorInterval);
+      mcpConnectionManager.closeConnection(connectionId);
+      console.log(`[MCP] Connection ${connectionId} aborted by client`);
+    });
+  }
+
   // Create handler with optional Redis (SSE works without it, but Redis enables multi-instance sync)
   const mcpHandler = createMcpHandler(
     (server) => {
@@ -393,7 +411,49 @@ const handler = async (req: Request) => {
     }
   );
   
-  return mcpHandler(req);
+  // Call the MCP handler and wrap the response to ensure cleanup
+  try {
+    const response = await mcpHandler(req);
+    
+    // Add cleanup on response close for SSE streams
+    if (response.body) {
+      const originalBody = response.body;
+      const transformStream = new TransformStream({
+        start() {
+          console.log(`[MCP] Stream started for connection ${connectionId}`);
+        },
+        transform(chunk, controller) {
+          controller.enqueue(chunk);
+        },
+        flush() {
+          console.log(`[MCP] Stream ended for connection ${connectionId}`);
+          clearInterval(monitorInterval);
+          mcpConnectionManager.closeConnection(connectionId);
+        },
+        cancel() {
+          console.log(`[MCP] Stream cancelled for connection ${connectionId}`);
+          clearInterval(monitorInterval);
+          mcpConnectionManager.closeConnection(connectionId);
+        }
+      });
+
+      return new Response(originalBody.pipeThrough(transformStream), {
+        status: response.status,
+        statusText: response.statusText,
+        headers: response.headers,
+      });
+    }
+    
+    // For non-streaming responses, clean up immediately
+    clearInterval(monitorInterval);
+    mcpConnectionManager.closeConnection(connectionId);
+    return response;
+  } catch (error) {
+    console.error(`[MCP] Error handling request for connection ${connectionId}:`, error);
+    clearInterval(monitorInterval);
+    mcpConnectionManager.closeConnection(connectionId);
+    throw error;
+  }
 };
 
 export { handler as GET, handler as POST };

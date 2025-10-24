@@ -23,16 +23,16 @@ class MCPConnectionManager {
   private rateLimits = new Map<string, RateLimitInfo>();
   
   // Configuration
-  private readonly MAX_CONNECTIONS = 10; // Maximum concurrent connections
+  private readonly MAX_CONNECTIONS = 50; // Maximum concurrent connections (increased from 10)
   private readonly MAX_REQUESTS_PER_MINUTE = 30; // Rate limit per client
-  private readonly CONNECTION_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+  private readonly CONNECTION_TIMEOUT_MS = 2 * 60 * 1000; // 2 minutes (reduced from 5)
   private readonly RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minute
-  private readonly HEARTBEAT_INTERVAL_MS = 30 * 1000; // 30 seconds
-  private readonly MAX_CONNECTION_IDLE_MS = 2 * 60 * 1000; // 2 minutes idle timeout
+  private readonly HEARTBEAT_INTERVAL_MS = 15 * 1000; // 15 seconds (more frequent)
+  private readonly MAX_CONNECTION_IDLE_MS = 60 * 1000; // 1 minute idle timeout (reduced from 2)
 
   constructor() {
-    // Clean up stale connections and rate limits every minute
-    setInterval(() => this.cleanup(), 60 * 1000);
+    // Clean up stale connections more aggressively - every 15 seconds
+    setInterval(() => this.cleanup(), 15 * 1000);
   }
 
   /**
@@ -94,7 +94,47 @@ class MCPConnectionManager {
     if (connection) {
       connection.isActive = false;
       console.log(`[MCP] Connection closed: ${connectionId}`);
+      console.log(`[MCP] Active connections: ${this.getActiveConnectionCount()}`);
     }
+  }
+
+  /**
+   * Mark connection as potentially dead (no response to heartbeat)
+   */
+  markConnectionDead(connectionId: string): void {
+    const connection = this.connections.get(connectionId);
+    if (connection) {
+      connection.isActive = false;
+      console.log(`[MCP] Connection marked as dead: ${connectionId} (no heartbeat response)`);
+      console.log(`[MCP] Active connections: ${this.getActiveConnectionCount()}`);
+    }
+  }
+
+  /**
+   * Force close idle connections
+   */
+  forceCloseIdleConnections(): number {
+    const now = Date.now();
+    let closedCount = 0;
+
+    for (const [connectionId, connection] of this.connections.entries()) {
+      if (!connection.isActive) continue;
+
+      const timeSinceActivity = now - connection.lastActivity.getTime();
+      
+      // Force close if idle for more than MAX_CONNECTION_IDLE_MS
+      if (timeSinceActivity > this.MAX_CONNECTION_IDLE_MS) {
+        connection.isActive = false;
+        closedCount++;
+        console.log(`[MCP] Force closed idle connection: ${connectionId} (idle for ${Math.round(timeSinceActivity / 1000)}s)`);
+      }
+    }
+
+    if (closedCount > 0) {
+      console.log(`[MCP] Force closed ${closedCount} idle connections. Active: ${this.getActiveConnectionCount()}`);
+    }
+
+    return closedCount;
   }
 
   /**
@@ -191,22 +231,37 @@ class MCPConnectionManager {
    */
   private cleanup(): void {
     const now = new Date();
+    let inactiveCount = 0;
+    let removedCount = 0;
 
     // Clean up old connections
     for (const [connectionId, connection] of this.connections.entries()) {
       const timeSinceActivity = now.getTime() - connection.lastActivity.getTime();
       
-      if (timeSinceActivity > this.CONNECTION_TIMEOUT_MS) {
+      // More aggressive timeout - mark inactive after CONNECTION_TIMEOUT_MS
+      if (connection.isActive && timeSinceActivity > this.CONNECTION_TIMEOUT_MS) {
         connection.isActive = false;
-        console.log(`[MCP] Connection ${connectionId} marked as inactive due to timeout`);
+        inactiveCount++;
+        console.log(`[MCP] Connection ${connectionId} marked as inactive (idle ${Math.round(timeSinceActivity / 1000)}s)`);
       }
 
-      // Remove very old connection records
-      const timeSinceConnection = now.getTime() - connection.connectedAt.getTime();
-      if (timeSinceConnection > this.CONNECTION_TIMEOUT_MS * 2) {
-        this.connections.delete(connectionId);
-        console.log(`[MCP] Connection ${connectionId} removed from registry`);
+      // Also check for very idle connections that should be force-closed
+      if (connection.isActive && timeSinceActivity > this.MAX_CONNECTION_IDLE_MS) {
+        connection.isActive = false;
+        inactiveCount++;
+        console.log(`[MCP] Connection ${connectionId} force-closed (idle ${Math.round(timeSinceActivity / 1000)}s)`);
       }
+
+      // Remove very old connection records more aggressively
+      const timeSinceConnection = now.getTime() - connection.connectedAt.getTime();
+      if (!connection.isActive && timeSinceConnection > this.CONNECTION_TIMEOUT_MS) {
+        this.connections.delete(connectionId);
+        removedCount++;
+      }
+    }
+
+    if (inactiveCount > 0 || removedCount > 0) {
+      console.log(`[MCP] Cleanup: ${inactiveCount} marked inactive, ${removedCount} removed. Active: ${this.getActiveConnectionCount()}`);
     }
 
     // Clean up old rate limit records
