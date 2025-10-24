@@ -1,7 +1,10 @@
 {
   "functions": {
     "src/app/**/*.ts": {
-      "maxDuration": 30
+      "maxDuration": 300
+    },
+    "src/app/mcp/[transport]/route.ts": {
+      "maxDuration": 900
     }
   }
 } 

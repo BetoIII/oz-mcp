@@ -65,12 +65,12 @@ const handler = async (req: Request) => {
   
   console.log(`[MCP] New request from ${clientIP} (${userAgent})`);
   
-  // Block Chrome extension and undici access to prevent unwanted SSE connections
-  if (userAgent.includes('undici') || 
-      (userAgent.toLowerCase().includes('chrome') && userAgent.includes('extension'))) {
-    console.log(`[MCP] Extension/undici blocked from MCP endpoint - User Agent: ${userAgent}`);
+  // Block Chrome extension access to prevent unwanted SSE connections
+  // Allow undici for MCP clients (like Claude Desktop)
+  if (userAgent.toLowerCase().includes('chrome') && userAgent.includes('extension')) {
+    console.log(`[MCP] Extension blocked from MCP endpoint - User Agent: ${userAgent}`);
     return new Response(JSON.stringify({ 
-      error: 'Extensions and automated clients are not supported',
+      error: 'Extensions are not supported',
       message: 'Please use the regular API endpoints at /api/opportunity-zones/check instead',
       redirect: '/api/opportunity-zones/check',
       userAgent: userAgent
@@ -108,13 +108,18 @@ const handler = async (req: Request) => {
   // Authenticate the request
   const accessToken = await authenticateRequest(nextReq);
   if (!accessToken) {
-    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+    console.log('[MCP] Authentication failed - returning 401');
+    return new Response(JSON.stringify({ 
+      error: 'Unauthorized',
+      message: 'Invalid or expired access token. Please check your Bearer token.',
+      hint: 'Get a new token from /dashboard or create a temporary key at POST /api/temporary-key'
+    }), {
       status: 401,
       headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
     });
   }
 
-  console.log('[MCP] Authentication successful');
+  console.log('[MCP] Authentication successful, clientId:', accessToken.clientId);
 
   // Register the connection
   mcpConnectionManager.registerConnection(connectionId, clientIP, userAgent);
@@ -123,7 +128,8 @@ const handler = async (req: Request) => {
   const requestBody = await req.clone().json().catch(() => null);
   console.log('[MCP] Request body:', requestBody);
 
-  return createMcpHandler(
+  // Create handler with optional Redis (SSE works without it, but Redis enables multi-instance sync)
+  const mcpHandler = createMcpHandler(
     (server) => {
       server.tool(
         "check_opportunity_zone",
@@ -382,9 +388,12 @@ const handler = async (req: Request) => {
     {
       basePath: "/mcp",
       verboseLogs: true,
-      redisUrl: process.env.REDIS_URL,
+      // Redis is optional - SSE will work without it
+      ...(process.env.REDIS_URL ? { redisUrl: process.env.REDIS_URL } : {}),
     }
-  )(req);
+  );
+  
+  return mcpHandler(req);
 };
 
 export { handler as GET, handler as POST };
