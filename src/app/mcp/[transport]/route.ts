@@ -417,11 +417,7 @@ const handler = async (req: Request) => {
           controller.enqueue(chunk);
         },
         flush() {
-          console.log(`[MCP] Stream ended for connection ${connectionId}`);
-          mcpConnectionManager.closeConnection(connectionId);
-        },
-        cancel() {
-          console.log(`[MCP] Stream cancelled for connection ${connectionId}`);
+          console.log(`[MCP] Stream ended/cancelled for connection ${connectionId}`);
           mcpConnectionManager.closeConnection(connectionId);
         }
       });
