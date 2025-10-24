@@ -128,19 +128,10 @@ const handler = async (req: Request) => {
   const requestBody = await req.clone().json().catch(() => null);
   console.log('[MCP] Request body:', requestBody);
 
-  // Set up connection monitoring - force close idle connections periodically
-  const monitorInterval = setInterval(() => {
-    const closedCount = mcpConnectionManager.forceCloseIdleConnections();
-    if (closedCount > 0) {
-      console.log(`[MCP] Monitoring: Force closed ${closedCount} idle connections`);
-    }
-  }, 30000); // Check every 30 seconds
-
-  // Clean up monitor on response finish
+  // Set up abort signal listener for immediate cleanup on disconnect
   const originalResponse = req as any;
   if (originalResponse.signal) {
     originalResponse.signal.addEventListener('abort', () => {
-      clearInterval(monitorInterval);
       mcpConnectionManager.closeConnection(connectionId);
       console.log(`[MCP] Connection ${connectionId} aborted by client`);
     });
@@ -427,12 +418,10 @@ const handler = async (req: Request) => {
         },
         flush() {
           console.log(`[MCP] Stream ended for connection ${connectionId}`);
-          clearInterval(monitorInterval);
           mcpConnectionManager.closeConnection(connectionId);
         },
         cancel() {
           console.log(`[MCP] Stream cancelled for connection ${connectionId}`);
-          clearInterval(monitorInterval);
           mcpConnectionManager.closeConnection(connectionId);
         }
       });
@@ -445,12 +434,10 @@ const handler = async (req: Request) => {
     }
     
     // For non-streaming responses, clean up immediately
-    clearInterval(monitorInterval);
     mcpConnectionManager.closeConnection(connectionId);
     return response;
   } catch (error) {
     console.error(`[MCP] Error handling request for connection ${connectionId}:`, error);
-    clearInterval(monitorInterval);
     mcpConnectionManager.closeConnection(connectionId);
     throw error;
   }

@@ -29,16 +29,24 @@ class MCPConnectionManager {
   private readonly RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minute
   private readonly HEARTBEAT_INTERVAL_MS = 15 * 1000; // 15 seconds (more frequent)
   private readonly MAX_CONNECTION_IDLE_MS = 60 * 1000; // 1 minute idle timeout (reduced from 2)
+  private lastCleanup: number = Date.now();
 
   constructor() {
-    // Clean up stale connections more aggressively - every 15 seconds
-    setInterval(() => this.cleanup(), 15 * 1000);
+    // Note: We don't use setInterval in serverless environments
+    // Instead, cleanup is called on-demand during each connection check
   }
 
   /**
    * Check if a new connection should be allowed
    */
   canAcceptConnection(clientIP: string, userAgent: string): { allowed: boolean; reason?: string } {
+    // Run cleanup if it's been more than 15 seconds since last cleanup
+    const now = Date.now();
+    if (now - this.lastCleanup > 15 * 1000) {
+      this.cleanup();
+      this.lastCleanup = now;
+    }
+
     // Check connection limit
     const activeConnections = Array.from(this.connections.values()).filter(conn => conn.isActive);
     if (activeConnections.length >= this.MAX_CONNECTIONS) {
