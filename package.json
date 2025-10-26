@@ -26,6 +26,7 @@
     "@auth/prisma-adapter": "^2.9.1",
     "@emotion/is-prop-valid": "latest",
     "@hookform/resolvers": "^3.9.1",
+    "@mcp-ui/server": "latest",
     "@modelcontextprotocol/sdk": "^1.13.1",
     "@prisma/client": "^6.10.1",
     "@radix-ui/react-accordion": "1.2.2",

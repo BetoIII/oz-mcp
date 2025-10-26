@@ -6,7 +6,7 @@ import { opportunityZoneService } from '@/lib/services/opportunity-zones';
 import { geocodingService } from '@/lib/services/geocoding';
 import { extractAddressFromUrl } from '@/lib/services/listing-address';
 import { mcpConnectionManager, getClientIP, generateConnectionId } from '@/lib/mcp-connection-manager';
-import { generateGoogleMapsUrl } from '@/lib/utils';
+import { generateGoogleMapsUrl, generateMapEmbedUrl } from '@/lib/utils';
 
 // Authentication helper
 async function authenticateRequest(request: NextRequest) {
@@ -189,6 +189,15 @@ const handler = async (req: Request) => {
             // Generate Google Maps URL for the location
             const mapUrl = generateGoogleMapsUrl(coords.latitude, coords.longitude, address);
 
+            // Generate embeddable map URL for MCP UI
+            const embedUrl = generateMapEmbedUrl(
+              coords.latitude,
+              coords.longitude,
+              address,
+              Boolean(isInOZ),
+              result.zoneId || undefined
+            );
+
             const fullResponse = [
               responseText,
               isInOZ ? `Zone ID: ${result.zoneId}` : '',
@@ -201,11 +210,21 @@ const handler = async (req: Request) => {
               ...messages
             ].filter(Boolean).join('\n');
 
+            // Create UI resource for embeddable map using MCP resource format
+            // The resource contains the iframe URL in text/uri-list format
             return {
               content: [
                 {
                   type: "text",
                   text: fullResponse,
+                },
+                {
+                  type: "resource",
+                  resource: {
+                    uri: `ui://opportunity-zone-map/${coords.latitude}/${coords.longitude}`,
+                    mimeType: "text/uri-list",
+                    text: embedUrl,
+                  },
                 },
               ],
             };

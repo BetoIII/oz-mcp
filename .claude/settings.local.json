@@ -21,7 +21,13 @@
       "Bash(chmod:*)",
       "Bash(git push:*)",
       "Bash(npm run test:*)",
-      "Bash(npm run test:oz:*)"
+      "Bash(npm run test:oz:*)",
+      "WebFetch(domain:mcpui.dev)",
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "Bash(npm install:*)",
+      "WebFetch(domain:www.npmjs.com)",
+      "Read(//var/folders/7q/j6fbl32j13n1dg03tz5cycyc0000gp/T/TemporaryItems/NSIRD_screencaptureui_OyvoSr/**)"
     ],
     "deny": []
   }
