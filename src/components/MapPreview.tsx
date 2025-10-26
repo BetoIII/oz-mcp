@@ -52,6 +52,7 @@ export function MapPreview({
         const map = new google.maps.Map(mapRef.current, {
           center,
           zoom: 15,
+          zoomControl: true,
           mapTypeControl: false,
           fullscreenControl: false,
           streetViewControl: false,

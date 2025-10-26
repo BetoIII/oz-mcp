@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MCP UI Embed Test</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+        }
+        .test-section {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-section h2 {
+            margin-top: 0;
+            color: #2563eb;
+            font-size: 18px;
+        }
+        .iframe-container {
+            width: 100%;
+            height: 500px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            overflow: hidden;
+            margin-top: 15px;
+        }
+        iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+        .info {
+            background: #eff6ff;
+            border-left: 4px solid #2563eb;
+            padding: 12px 16px;
+            margin: 15px 0;
+            border-radius: 4px;
+        }
+        .info code {
+            background: #dbeafe;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 13px;
+        }
+        .status {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-left: 10px;
+        }
+        .status.success {
+            background: #dcfce7;
+            color: #166534;
+        }
+        .status.pending {
+            background: #fef3c7;
+            color: #92400e;
+        }
+        .test-list {
+            list-style: none;
+            padding: 0;
+            margin: 20px 0;
+        }
+        .test-list li {
+            padding: 8px 0;
+            border-bottom: 1px solid #f3f4f6;
+        }
+        .test-list li:last-child {
+            border-bottom: none;
+        }
+        .test-list li::before {
+            content: "→ ";
+            color: #2563eb;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🗺️ MCP UI Embed Integration Test</h1>
+        <p class="subtitle">Testing the embedded Google Maps component for MCP responses</p>
+
+        <div class="test-section">
+            <h2>Test 1: Opportunity Zone Location <span class="status success">IN OZ</span></h2>
+            <div class="info">
+                <strong>Location:</strong> Manhattan, NY (Times Square area)<br>
+                <strong>Coordinates:</strong> <code>40.7589, -73.9851</code><br>
+                <strong>Zone ID:</strong> <code>36061004301</code><br>
+                <strong>Expected Result:</strong> Green marker with "✅ Opportunity Zone" badge
+            </div>
+            <div class="iframe-container">
+                <iframe src="http://localhost:3000/embed/map?lat=40.7589&lng=-73.9851&isOZ=true&tractId=36061004301&address=Times+Square,+Manhattan,+NY"></iframe>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h2>Test 2: Non-Opportunity Zone Location <span class="status pending">NOT IN OZ</span></h2>
+            <div class="info">
+                <strong>Location:</strong> Beverly Hills, CA<br>
+                <strong>Coordinates:</strong> <code>34.0736, -118.4004</code><br>
+                <strong>Expected Result:</strong> Red marker with "❌ Not an OZ" badge
+            </div>
+            <div class="iframe-container">
+                <iframe src="http://localhost:3000/embed/map?lat=34.0736&lng=-118.4004&isOZ=false&address=Beverly+Hills,+CA"></iframe>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h2>Test 3: Coordinates Only (No Address) <span class="status success">IN OZ</span></h2>
+            <div class="info">
+                <strong>Location:</strong> Detroit, MI<br>
+                <strong>Coordinates:</strong> <code>42.3314, -83.0458</code><br>
+                <strong>Zone ID:</strong> <code>26163507400</code><br>
+                <strong>Expected Result:</strong> Green marker, coordinates-only display
+            </div>
+            <div class="iframe-container">
+                <iframe src="http://localhost:3000/embed/map?lat=42.3314&lng=-83.0458&isOZ=true&tractId=26163507400"></iframe>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h2>✅ What to Look For</h2>
+            <ul class="test-list">
+                <li>Maps should load without errors (check browser console)</li>
+                <li>Green markers for OZ locations, red for non-OZ</li>
+                <li>Status badge overlay appears in top-left corner</li>
+                <li>Map is interactive (can pan and zoom)</li>
+                <li>Opportunity zone shape overlays appear as you pan</li>
+                <li>"View in Google Maps" button is visible and clickable</li>
+                <li>No hydration errors in console</li>
+                <li>Google Maps API loads successfully</li>
+            </ul>
+        </div>
+
+        <div class="test-section">
+            <h2>🔧 Debugging Information</h2>
+            <div class="info">
+                <strong>Console Logs to Check:</strong>
+                <ul style="margin: 10px 0; padding-left: 20px;">
+                    <li>"Google Maps script loaded"</li>
+                    <li>"Google Maps API confirmed available"</li>
+                    <li>No "Google Maps library not available" errors</li>
+                </ul>
+                <strong>Browser Console:</strong> Press <code>F12</code> or <code>Cmd+Option+I</code> to open DevTools
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Log iframe load events
+        document.querySelectorAll('iframe').forEach((iframe, index) => {
+            iframe.addEventListener('load', () => {
+                console.log(`✅ Test ${index + 1} iframe loaded successfully`);
+            });
+            iframe.addEventListener('error', (e) => {
+                console.error(`❌ Test ${index + 1} iframe failed to load:`, e);
+            });
+        });
+
+        console.log('📊 MCP UI Embed Test Page Loaded');
+        console.log('🔍 Open browser console (F12) to see detailed logs');
+    </script>
+</body>
+</html>

@@ -27,7 +27,11 @@
       "WebFetch(domain:github.com)",
       "Bash(npm install:*)",
       "WebFetch(domain:www.npmjs.com)",
-      "Read(//var/folders/7q/j6fbl32j13n1dg03tz5cycyc0000gp/T/TemporaryItems/NSIRD_screencaptureui_OyvoSr/**)"
+      "Read(//var/folders/7q/j6fbl32j13n1dg03tz5cycyc0000gp/T/TemporaryItems/NSIRD_screencaptureui_OyvoSr/**)",
+      "Bash(open:*)",
+      "Bash(python3:*)",
+      "Bash(./test-mcp-ui.sh:*)",
+      "Read(//var/folders/7q/j6fbl32j13n1dg03tz5cycyc0000gp/T/TemporaryItems/NSIRD_screencaptureui_oWKyD5/**)"
     ],
     "deny": []
   }

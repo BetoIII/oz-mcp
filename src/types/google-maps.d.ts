@@ -42,6 +42,7 @@ declare namespace google {
     interface MapOptions {
       center?: LatLng | LatLngLiteral
       zoom?: number
+      zoomControl?: boolean
       mapTypeControl?: boolean
       fullscreenControl?: boolean
       streetViewControl?: boolean
