@@ -387,11 +387,15 @@ export default function PlaygroundClient() {
         address: 'Address to geocode',
       },
     },
-    get_listing_address: {
-      name: 'Get Listing Address',
-      description: 'Extract address from real estate listing URLs',
+    grok_address: {
+      name: 'Grok Address (Multimodal)',
+      description: 'Extract address from screenshot, HTML, URL, or metadata using AI',
       parameters: {
-        url: 'Real estate listing URL (e.g., Zillow, Realtor.com)',
+        screenshot: 'Base64-encoded screenshot (PNG/JPEG)',
+        html: 'HTML content',
+        url: 'Page URL',
+        metadata: 'Structured metadata (JSON)',
+        strictValidation: 'Require high confidence (default: true)',
       },
     },
     get_oz_status: {
@@ -582,7 +586,7 @@ export default function PlaygroundClient() {
                     <SelectContent>
                       <SelectItem value="check_opportunity_zone">Check Opportunity Zone</SelectItem>
                       <SelectItem value="geocode_address">Geocode Address</SelectItem>
-                      <SelectItem value="get_listing_address">Get Listing Address</SelectItem>
+                      <SelectItem value="grok_address">Grok Address (Multimodal)</SelectItem>
                       <SelectItem value="get_oz_status">Get Service Status</SelectItem>
                     </SelectContent>
                   </Select>
@@ -640,17 +644,59 @@ export default function PlaygroundClient() {
                   </div>
                 )}
 
-                {selectedTool === 'get_listing_address' && (
-                  <div className="space-y-2">
-                    <Label htmlFor="url">Real Estate Listing URL</Label>
-                    <Input
-                      id="url"
-                      placeholder="e.g., https://www.zillow.com/homedetails/123-Main-St-..."
-                      value={params.url}
-                      onChange={(e) => handleParamChange('url', e.target.value)}
-                    />
-                    <div className="text-xs text-muted-foreground">
-                      Supports Zillow, Realtor.com, and other major real estate sites
+                {selectedTool === 'grok_address' && (
+                  <div className="space-y-4">
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm">
+                      <p className="font-medium text-blue-900">Multimodal Address Extraction</p>
+                      <p className="text-blue-700 text-xs mt-1">
+                        Provide one or more inputs. Multiple inputs improve accuracy.
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="url">URL</Label>
+                      <Input
+                        id="url"
+                        placeholder="e.g., https://www.zillow.com/homedetails/..."
+                        value={params.url}
+                        onChange={(e) => handleParamChange('url', e.target.value)}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="html">HTML Content (optional)</Label>
+                      <Textarea
+                        id="html"
+                        placeholder="Paste HTML content here..."
+                        value={params.html}
+                        onChange={(e) => handleParamChange('html', e.target.value)}
+                        className="min-h-[100px] font-mono text-xs"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="screenshot">Screenshot (Base64)</Label>
+                      <Textarea
+                        id="screenshot"
+                        placeholder="Paste base64-encoded image (data:image/png;base64,...)"
+                        value={params.screenshot}
+                        onChange={(e) => handleParamChange('screenshot', e.target.value)}
+                        className="min-h-[80px] font-mono text-xs"
+                      />
+                      <div className="text-xs text-muted-foreground">
+                        Accepts PNG, JPEG, WEBP (base64 or data URL format)
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="metadata">Metadata (JSON, optional)</Label>
+                      <Textarea
+                        id="metadata"
+                        placeholder='{"address": {...}}'
+                        value={params.metadata}
+                        onChange={(e) => handleParamChange('metadata', e.target.value)}
+                        className="min-h-[60px] font-mono text-xs"
+                      />
                     </div>
                   </div>
                 )}
@@ -807,22 +853,53 @@ export default function PlaygroundClient() {
                             }
                           }
 
-                          // Handle successful listing address extraction
-                          if (selectedTool === 'get_listing_address') {
-                            const addressMatch = responseText.match(/Address: ([^\n]+)/);
-                            
-                            if (addressMatch) {
+                          // Handle grok_address extraction
+                          if (selectedTool === 'grok_address') {
+                            const successMatch = responseText.match(/✅ Address extracted successfully/);
+                            const failureMatch = responseText.match(/❌ Address extraction failed/);
+                            const addressMatch = responseText.match(/\*\*([^*]+)\*\*/);
+                            const confidenceMatch = responseText.match(/Confidence: ([\d.]+)%/);
+                            const sourcesMatch = responseText.match(/Sources: ([^\n]+)/);
+
+                            if (successMatch && addressMatch) {
                               return (
                                 <div className="rounded-lg border bg-muted/50 p-4 space-y-2">
                                   <div className="flex items-center space-x-2">
                                     <CheckCircle className="h-5 w-5 text-green-600" />
-                                    <span className="font-medium">🏠 Address Extracted</span>
+                                    <span className="font-medium">✅ Address Extracted Successfully</span>
                                   </div>
-                                  <div className="text-sm text-muted-foreground">
-                                    <p><strong>Extracted Address:</strong> {addressMatch[1]}</p>
+                                  <div className="text-sm text-muted-foreground space-y-1">
+                                    <p className="text-lg font-semibold text-foreground">{addressMatch[1]}</p>
+                                    {confidenceMatch && (
+                                      <p><strong>Confidence:</strong> {confidenceMatch[1]}%</p>
+                                    )}
+                                    {sourcesMatch && (
+                                      <p><strong>Sources:</strong> {sourcesMatch[1]}</p>
+                                    )}
                                   </div>
                                   <div className="text-xs text-blue-600 bg-blue-50 p-2 rounded">
-                                    💡 Tip: You can now use this address with "Check Opportunity Zone" tool
+                                    💡 Tip: Use this address with "Check Opportunity Zone" to verify OZ status
+                                  </div>
+                                </div>
+                              );
+                            } else if (failureMatch) {
+                              const candidateMatch = responseText.match(/Candidate: ([^\n]+)/);
+                              return (
+                                <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-4 space-y-2">
+                                  <div className="flex items-center space-x-2">
+                                    <AlertTriangle className="h-5 w-5 text-amber-600" />
+                                    <span className="font-medium text-amber-800">Address Extraction Failed</span>
+                                  </div>
+                                  {candidateMatch && (
+                                    <div className="text-sm text-amber-700">
+                                      <p><strong>Candidate found:</strong> {candidateMatch[1]}</p>
+                                      {confidenceMatch && (
+                                        <p><strong>Confidence:</strong> {confidenceMatch[1]}% (below 80% threshold)</p>
+                                      )}
+                                    </div>
+                                  )}
+                                  <div className="text-xs text-amber-700">
+                                    Try providing multiple inputs (screenshot + HTML) for better results
                                   </div>
                                 </div>
                               );
