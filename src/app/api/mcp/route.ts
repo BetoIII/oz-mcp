@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/app/prisma';
 import { opportunityZoneService } from '@/lib/services/opportunity-zones';
 import { geocodingService } from '@/lib/services/geocoding';
-import { generateGoogleMapsUrl } from '@/lib/utils';
+import { generateGoogleMapsUrl, generateMapEmbedUrl } from '@/lib/utils';
 import { extractAddressFromUrl } from '@/lib/services/listing-address';
 
 // Temporary token usage tracking (in-memory for simplicity)
@@ -242,6 +242,15 @@ export async function POST(request: NextRequest) {
           // Generate Google Maps URL for the location
           const mapUrl = generateGoogleMapsUrl(coords.latitude, coords.longitude, address);
 
+          // Generate embeddable map URL for MCP UI
+          const embedUrl = generateMapEmbedUrl(
+            coords.latitude,
+            coords.longitude,
+            address,
+            Boolean(isInOZ),
+            ozResult.zoneId || undefined
+          );
+
           const fullResponse = [
             responseText,
             isInOZ ? `Zone ID: ${ozResult.zoneId}` : '',
@@ -254,15 +263,25 @@ export async function POST(request: NextRequest) {
             ...messages
           ].filter(Boolean).join('\n');
 
+          // Create UI resource for embeddable map using MCP resource format
+          // The resource contains the iframe URL in text/uri-list format
           result = {
             content: [
               {
                 type: "text",
                 text: fullResponse,
               },
+              {
+                type: "resource",
+                resource: {
+                  uri: `ui://opportunity-zone-map/${coords.latitude}/${coords.longitude}`,
+                  mimeType: "text/uri-list",
+                  text: embedUrl,
+                },
+              },
             ],
           };
-          
+
           // Only increment usage if we successfully completed the full check
           shouldIncrementUsage = true;
         } catch (error) {

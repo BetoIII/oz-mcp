@@ -82,18 +82,47 @@ export const seo = {
 /**
  * Generate a Google Maps URL for displaying a location
  * @param latitude - Latitude coordinate
- * @param longitude - Longitude coordinate  
+ * @param longitude - Longitude coordinate
  * @param address - Optional address string to include in query
  * @returns Formatted Google Maps URL
  */
 export function generateGoogleMapsUrl(latitude: number, longitude: number, address?: string): string {
   const baseUrl = 'https://www.google.com/maps/search/';
-  
+
   // Use coordinates as the primary query for accuracy
   const coordsQuery = `${latitude},${longitude}`;
-  
+
   // If address is provided, include it for better user experience
   const query = address ? `${address} ${coordsQuery}` : coordsQuery;
-  
+
   return `${baseUrl}?api=1&query=${encodeURIComponent(query)}`;
+}
+
+/**
+ * Generate an embeddable map URL for MCP UI responses
+ * @param latitude - Latitude coordinate
+ * @param longitude - Longitude coordinate
+ * @param address - Optional address string
+ * @param isOpportunityZone - Whether the location is in an OZ
+ * @param tractId - Optional OZ tract ID
+ * @returns Formatted embed URL for iframe
+ */
+export function generateMapEmbedUrl(
+  latitude: number,
+  longitude: number,
+  address?: string,
+  isOpportunityZone?: boolean,
+  tractId?: string
+): string {
+  const baseUrl = `${config.baseUrl}/embed/map`;
+  const params = new URLSearchParams({
+    lat: latitude.toString(),
+    lng: longitude.toString(),
+  });
+
+  if (address) params.set('address', address);
+  if (isOpportunityZone !== undefined) params.set('isOZ', isOpportunityZone.toString());
+  if (tractId) params.set('tractId', tractId);
+
+  return `${baseUrl}?${params.toString()}`;
 } 

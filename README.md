@@ -62,11 +62,67 @@ A Next.js-based MCP (Model Context Protocol) server that provides opportunity zo
 
 Visit `http://localhost:3000` to access the web interface.
 
-## 🔧 MCP Integration
+## 🔧 MCP Client Integration
 
-### For Claude Desktop
+This server can be integrated with various MCP clients using different transport protocols.
 
-Add to your Claude Desktop configuration:
+📖 **For detailed setup instructions, see [MCP_SETUP_GUIDE.md](./MCP_SETUP_GUIDE.md)**
+
+### Option 1: STDIO Transport (Recommended for Goose Block & Local Clients)
+
+The STDIO server provides a direct Node.js interface that works with Goose Block and other local MCP clients.
+
+**For Goose Block:**
+
+1. Get an API key from the dashboard at `http://localhost:3000/dashboard`
+2. Add to your Goose Block MCP extensions:
+   - **Extension Name**: `localoppzones` (or any name you prefer)
+   - **Type**: `STDIO`
+   - **Command**: `node /path/to/oz-mcp/mcp-stdio-server.js`
+   - **Timeout**: `300`
+   - **Environment Variables**:
+     - `OZ_MCP_API_KEY`: `your-api-key-here`
+     - `OZ_API_URL`: `http://localhost:3000/api/mcp` (optional, defaults to this)
+
+**For Claude Desktop (STDIO):**
+
+Add to your `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "opportunity-zones": {
+      "command": "node",
+      "args": ["/path/to/oz-mcp/mcp-stdio-server.js"],
+      "env": {
+        "OZ_MCP_API_KEY": "your-api-key-here"
+      }
+    }
+  }
+}
+```
+
+**For Cursor IDE:**
+
+Create or update `.cursor/mcp.json` in your project:
+
+```json
+{
+  "mcpServers": {
+    "opportunity-zones": {
+      "command": "node",
+      "args": ["/path/to/oz-mcp/mcp-stdio-server.js"],
+      "env": {
+        "OZ_MCP_API_KEY": "your-api-key-here"
+      }
+    }
+  }
+}
+```
+
+### Option 2: SSE Transport (For Web-Based Clients)
+
+**For Claude Desktop (SSE via Vercel adapter):**
 
 ```json
 {
@@ -82,11 +138,28 @@ Add to your Claude Desktop configuration:
 }
 ```
 
-### For Other MCP Clients
+**For Cursor IDE (SSE):**
 
-The server supports multiple transport protocols:
+```json
+{
+  "mcpServers": {
+    "opportunity-zones": {
+      "url": "http://localhost:3000/mcp/sse",
+      "transport": "sse",
+      "headers": {
+        "Authorization": "Bearer your-api-key-here"
+      }
+    }
+  }
+}
+```
+
+### Available Transport Protocols
+
+- **STDIO** (`mcp-stdio-server.js`): Direct Node.js process communication (recommended for local clients)
 - **Server-Sent Events (SSE)**: `http://localhost:3000/mcp/sse`
 - **HTTP Streaming**: `http://localhost:3000/mcp/http-stream`
+- **JSON-RPC**: `http://localhost:3000/api/mcp` (legacy)
 
 ## 📚 Available MCP Tools
 

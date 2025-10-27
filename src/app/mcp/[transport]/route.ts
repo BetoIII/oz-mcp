@@ -6,7 +6,7 @@ import { opportunityZoneService } from '@/lib/services/opportunity-zones';
 import { geocodingService } from '@/lib/services/geocoding';
 import { extractAddressFromUrl } from '@/lib/services/listing-address';
 import { mcpConnectionManager, getClientIP, generateConnectionId } from '@/lib/mcp-connection-manager';
-import { generateGoogleMapsUrl } from '@/lib/utils';
+import { generateGoogleMapsUrl, generateMapEmbedUrl } from '@/lib/utils';
 
 // Authentication helper
 async function authenticateRequest(request: NextRequest) {
@@ -182,30 +182,45 @@ const handler = async (req: Request) => {
             // Only true if both conditions are met to avoid contradictory messages
             const isInOZ = result.isInZone && result.zoneId;
 
+            // Create simple text response - map visual will show the details
             const responseText = address
-              ? `Address "${address}" (${coords.latitude}, ${coords.longitude}) is ${isInOZ ? 'in' : 'not in'} an opportunity zone.`
-              : `Point (${coords.latitude}, ${coords.longitude}) is ${isInOZ ? 'in' : 'not in'} an opportunity zone.`;
+              ? `The address ${address} (coordinates ${coords.latitude}, ${coords.longitude}) is ${isInOZ ? 'located within Opportunity Zone census tract ' + result.zoneId : 'not in an Opportunity Zone'}.`
+              : `The coordinates (${coords.latitude}, ${coords.longitude}) ${isInOZ ? 'are located within Opportunity Zone census tract ' + result.zoneId : 'are not in an Opportunity Zone'}.`;
 
-            // Generate Google Maps URL for the location
+            // Generate Google Maps URL for the location (for reference, but not displayed in text)
             const mapUrl = generateGoogleMapsUrl(coords.latitude, coords.longitude, address);
 
-            const fullResponse = [
-              responseText,
-              isInOZ ? `Zone ID: ${result.zoneId}` : '',
-              `📍 View on Google Maps: ${mapUrl}`,
-              '',
-              `Data version: ${result.metadata.version}`,
-              `Last updated: ${result.metadata.lastUpdated.toISOString()}`,
-              `Feature count: ${result.metadata.featureCount}`,
-              '',
-              ...messages
-            ].filter(Boolean).join('\n');
+            // Generate embeddable map URL for MCP UI
+            const embedUrl = generateMapEmbedUrl(
+              coords.latitude,
+              coords.longitude,
+              address,
+              Boolean(isInOZ),
+              result.zoneId || undefined
+            );
 
+            // Simple response text - visual map will show location details
+            const fullResponse = responseText;
+
+            // Create UI resource for embeddable map using MCP resource format
+            // The resource contains the iframe URL in text/uri-list format
+            // Use MCP-UI metadata to control iframe dimensions (array format for Goose compatibility)
             return {
               content: [
                 {
                   type: "text",
                   text: fullResponse,
+                },
+                {
+                  type: "resource",
+                  resource: {
+                    uri: `ui://opportunity-zone-map/${coords.latitude}/${coords.longitude}`,
+                    mimeType: "text/uri-list",
+                    text: embedUrl,
+                    _meta: {
+                      "preferred-frame-size": ["800px", "360px"]
+                    }
+                  },
                 },
               ],
             };
