@@ -5,6 +5,15 @@ const nextConfig: NextConfig = {
   env: {
     NEXT_PUBLIC_DEPLOYMENT_DATE: new Date().toISOString(),
   },
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'lh3.googleusercontent.com',
+        pathname: '/**',
+      },
+    ],
+  },
 };
 
 export default nextConfig;

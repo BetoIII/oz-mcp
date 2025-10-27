@@ -52,7 +52,9 @@ export function PlacesAutocomplete({
       try {
         // Check if places library is available (it should be since we loaded it in the script)
         if (!google.maps.places) {
-          console.error('Google Places library not available')
+          console.warn('Google Places library not yet available, retrying...')
+          // Retry after a short delay
+          setTimeout(initializeAutocomplete, 500)
           return
         }
 

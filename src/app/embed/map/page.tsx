@@ -17,6 +17,43 @@ function MapEmbedContent({ mapsLoaded }: MapEmbedContentProps) {
   // Ensure we only render on client to avoid hydration issues
   useEffect(() => {
     setIsClient(true)
+
+    // Set up ResizeObserver to communicate height changes to parent iframe (for MCP-UI)
+    // Use a minimum height to prevent collapsing (360px = 40% shorter than original 600px)
+    const MIN_HEIGHT = 360;
+
+    // Delay the ResizeObserver setup to allow content to load first
+    const timer = setTimeout(() => {
+      const resizeObserver = new ResizeObserver((entries) => {
+        for (const entry of entries) {
+          // Ensure we never report a height less than MIN_HEIGHT
+          const height = Math.max(entry.contentRect.height, MIN_HEIGHT);
+
+          // Post message to parent window to adjust iframe height
+          window.parent.postMessage({
+            type: "ui-size-change",
+            payload: { height },
+          }, "*");
+        }
+      });
+
+      // Observe the document body for size changes
+      resizeObserver.observe(document.body);
+
+      // Send initial height immediately
+      window.parent.postMessage({
+        type: "ui-size-change",
+        payload: { height: Math.max(document.body.scrollHeight, MIN_HEIGHT) },
+      }, "*");
+
+      return () => {
+        resizeObserver.disconnect();
+      };
+    }, 500); // Wait 500ms for initial render
+
+    return () => {
+      clearTimeout(timer);
+    };
   }, [])
 
   const lat = searchParams.get('lat')
@@ -67,8 +104,8 @@ function MapEmbedContent({ mapsLoaded }: MapEmbedContentProps) {
   }
 
   return (
-    <div className="h-screen w-screen p-4 bg-gray-50">
-      <div className="h-full w-full">
+    <div className="w-screen bg-gray-50 flex flex-col" style={{ minHeight: '360px', height: '360px' }}>
+      <div className="flex-1 w-full p-2">
         <MapPreview
           latitude={latitude}
           longitude={longitude}

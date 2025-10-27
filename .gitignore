@@ -44,3 +44,7 @@ next-env.d.ts
 
 # Large data files
 data/opportunity-zones-optimized.json
+
+# IDE and MCP client configurations (local only)
+.cursor/
+.claude/
