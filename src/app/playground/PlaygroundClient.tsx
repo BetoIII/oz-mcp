@@ -754,7 +754,7 @@ export default function PlaygroundClient() {
                     </Badge>
 
                     {/* Parsed Result Display */}
-                    {(selectedTool === 'check_opportunity_zone' || selectedTool === 'geocode_address' || selectedTool === 'get_listing_address') && response.result?.content?.[0]?.text && (
+                    {(selectedTool === 'check_opportunity_zone' || selectedTool === 'geocode_address' || selectedTool === 'get_listing_address' || selectedTool === 'grok_address') && response.result?.content?.[0]?.text && (
                       <div className="mb-4">
                         {(() => {
                           const responseText = response.result.content[0].text;
