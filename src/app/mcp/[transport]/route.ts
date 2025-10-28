@@ -4,7 +4,7 @@ import { prisma } from '@/app/prisma';
 import { NextRequest } from 'next/server';
 import { opportunityZoneService } from '@/lib/services/opportunity-zones';
 import { geocodingService } from '@/lib/services/geocoding';
-import { extractAddressFromUrl } from '@/lib/services/listing-address';
+import { grokAddress } from '@/lib/services/grok-address';
 import { mcpConnectionManager, getClientIP, generateConnectionId } from '@/lib/mcp-connection-manager';
 import { generateGoogleMapsUrl, generateMapEmbedUrl } from '@/lib/utils';
 
@@ -300,15 +300,19 @@ const handler = async (req: Request) => {
       );
 
       server.tool(
-        "get_listing_address",
-        "Extract a normalized US mailing address from a listing URL",
+        "grok_address",
+        "Extract a U.S. mailing address from multimodal inputs (screenshot, HTML, URL, or structured metadata) using AI-powered agent workflow",
         {
-          url: z.string().describe("Listing URL to analyze"),
+          screenshot: z.string().optional().describe("Base64-encoded screenshot (PNG, JPEG, WEBP) of a real estate listing or page with address"),
+          html: z.string().optional().describe("HTML content from the page containing the address"),
+          url: z.string().optional().describe("URL of the page to analyze (will be fetched if HTML not provided)"),
+          metadata: z.any().optional().describe("Structured metadata (JSON-LD, schema.org, etc.) containing address information"),
+          strictValidation: z.boolean().optional().describe("Require high confidence (≥80%) for address extraction. Default: true"),
         },
-        async ({ url }) => {
+        async ({ screenshot, html, url, metadata, strictValidation }) => {
           // Update connection activity
           mcpConnectionManager.updateActivity(connectionId);
-          
+
           const messages: string[] = [];
           const log = (type: string, message: string) => {
             messages.push(`[${type.toUpperCase()}] ${message}`);
@@ -316,26 +320,90 @@ const handler = async (req: Request) => {
           };
 
           try {
-            const address = await extractAddressFromUrl(url);
-            const responseText = [
-              `Address: ${address}`,
-              '',
-              ...messages
-            ].join('\n');
+            // Fetch HTML if URL provided but no HTML
+            let htmlContent = html;
+            if (url && !html) {
+              log('info', `Fetching HTML from URL: ${url}`);
+              try {
+                const response = await fetch(url, {
+                  headers: {
+                    'User-Agent': 'Opportunity Zone MCP Server',
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+                  }
+                });
+                if (response.ok) {
+                  htmlContent = await response.text();
+                  log('success', 'HTML fetched successfully');
+                }
+              } catch (fetchError) {
+                log('warning', `Failed to fetch HTML: ${fetchError instanceof Error ? fetchError.message : 'Unknown error'}`);
+              }
+            }
 
-            return {
-              content: [
-                {
-                  type: "text",
-                  text: responseText,
-                },
-              ],
-            };
+            const result = await grokAddress({
+              screenshot,
+              html: htmlContent,
+              url,
+              metadata,
+              options: {
+                strictValidation: strictValidation ?? true,
+                geocodeValidation: false
+              }
+            }, log);
+
+            if (result.success && result.address) {
+              const responseText = [
+                `✅ Address extracted successfully:`,
+                ``,
+                `**${result.address}**`,
+                ``,
+                `Confidence: ${(result.confidence * 100).toFixed(1)}%`,
+                `Sources: ${result.sources.join(', ')}`,
+                ``,
+                ...messages
+              ].join('\n');
+
+              return {
+                content: [
+                  {
+                    type: "text",
+                    text: responseText,
+                  },
+                ],
+              };
+            } else {
+              const warningText = result.warnings?.join('\n• ') || 'No address could be extracted';
+              const responseText = [
+                `❌ Address extraction failed`,
+                ``,
+                result.address ? `Candidate: ${result.address}` : '',
+                `Confidence: ${(result.confidence * 100).toFixed(1)}%`,
+                result.address ? `(Threshold: 80%)` : '',
+                ``,
+                `Reasons:`,
+                `• ${warningText}`,
+                ``,
+                `Suggestions:`,
+                `• Provide multiple input types (screenshot + HTML) for better accuracy`,
+                `• Ensure the image/content clearly shows a U.S. street address`,
+                `• Check that the address includes: street number, name, city, state, ZIP`,
+                ``,
+                ...messages
+              ].filter(Boolean).join('\n');
+
+              return {
+                content: [
+                  {
+                    type: "text",
+                    text: responseText,
+                  },
+                ],
+              };
+            }
           } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-            const status = errorMessage === 'NOT_FOUND' ? 'Address not found' : `Error: ${errorMessage}`;
             const fullResponse = [
-              status,
+              `❌ Error: ${errorMessage}`,
               '',
               ...messages
             ].join('\n');

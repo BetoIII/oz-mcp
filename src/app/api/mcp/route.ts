@@ -3,7 +3,7 @@ import { prisma } from '@/app/prisma';
 import { opportunityZoneService } from '@/lib/services/opportunity-zones';
 import { geocodingService } from '@/lib/services/geocoding';
 import { generateGoogleMapsUrl, generateMapEmbedUrl } from '@/lib/utils';
-import { extractAddressFromUrl } from '@/lib/services/listing-address';
+import { grokAddress } from '@/lib/services/grok-address';
 
 // Temporary token usage tracking (in-memory for simplicity)
 const tempTokenUsage = new Map<string, number>();
@@ -148,7 +148,7 @@ export async function POST(request: NextRequest) {
 
     // Check if token usage is exceeded, but allow certain tools to remain free/unlimited
     if ((accessToken as any).usageExceeded) {
-      const freeTools = new Set(['get_listing_address', 'get_oz_status']);
+      const freeTools = new Set(['grok_address', 'get_oz_status']);
       if (!freeTools.has(name)) {
         if ((accessToken as any).isTemporary) {
           return NextResponse.json({ 
@@ -369,31 +369,95 @@ export async function POST(request: NextRequest) {
         }
         break;
 
-      case 'get_listing_address':
+      case 'grok_address':
         try {
-          const { url } = args;
-          const address = await extractAddressFromUrl(url);
+          const { screenshot, html, url, metadata, strictValidation } = args;
 
-          const responseText = [
-            `Address: ${address}`,
-            '',
-            ...messages
-          ].join('\n');
+          // Fetch HTML if URL provided but no HTML
+          let htmlContent = html;
+          if (url && !html) {
+            log('info', `Fetching HTML from URL: ${url}`);
+            try {
+              const response = await fetch(url, {
+                headers: {
+                  'User-Agent': 'Opportunity Zone MCP Server',
+                  'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+                }
+              });
+              if (response.ok) {
+                htmlContent = await response.text();
+                log('success', 'HTML fetched successfully');
+              }
+            } catch (fetchError) {
+              log('warning', `Failed to fetch HTML: ${fetchError instanceof Error ? fetchError.message : 'Unknown error'}`);
+            }
+          }
 
-          result = {
-            content: [
-              {
-                type: "text",
-                text: responseText,
-              },
-            ],
-          };
+          const grokResult = await grokAddress({
+            screenshot,
+            html: htmlContent,
+            url,
+            metadata,
+            options: {
+              strictValidation: strictValidation ?? true,
+              geocodeValidation: false
+            }
+          }, log);
+
+          if (grokResult.success && grokResult.address) {
+            const responseText = [
+              `✅ Address extracted successfully:`,
+              ``,
+              `**${grokResult.address}**`,
+              ``,
+              `Confidence: ${(grokResult.confidence * 100).toFixed(1)}%`,
+              `Sources: ${grokResult.sources.join(', ')}`,
+              ``,
+              ...messages
+            ].join('\n');
+
+            result = {
+              content: [
+                {
+                  type: "text",
+                  text: responseText,
+                },
+              ],
+            };
+          } else {
+            const warningText = grokResult.warnings?.join('\n• ') || 'No address could be extracted';
+            const responseText = [
+              `❌ Address extraction failed`,
+              ``,
+              grokResult.address ? `Candidate: ${grokResult.address}` : '',
+              `Confidence: ${(grokResult.confidence * 100).toFixed(1)}%`,
+              grokResult.address ? `(Threshold: 80%)` : '',
+              ``,
+              `Reasons:`,
+              `• ${warningText}`,
+              ``,
+              `Suggestions:`,
+              `• Provide multiple input types (screenshot + HTML) for better accuracy`,
+              `• Ensure the image/content clearly shows a U.S. street address`,
+              `• Check that the address includes: street number, name, city, state, ZIP`,
+              ``,
+              ...messages
+            ].filter(Boolean).join('\n');
+
+            result = {
+              content: [
+                {
+                  type: "text",
+                  text: responseText,
+                },
+              ],
+            };
+          }
           // This tool is free and does not count toward usage limits
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-          const status = errorMessage === 'NOT_FOUND' ? 'Address not found' : `Error: ${errorMessage}`;
           const fullResponse = [
-            status,
+            `❌ Error: ${errorMessage}`,
             '',
             ...messages
           ].join('\n');

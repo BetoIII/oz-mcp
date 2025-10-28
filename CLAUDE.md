@@ -18,16 +18,16 @@ This is a Next.js-based MCP (Model Context Protocol) server that provides opport
 - **OpportunityZoneService** (`src/lib/services/opportunity-zones.ts`): Main service coordinating spatial queries
 - **PostGISOpportunityZoneService** (`src/lib/services/postgis-opportunity-zones.ts`): PostGIS-optimized spatial operations
 - **GeocodingService** (`src/lib/services/geocoding.ts`): Address-to-coordinate conversion with caching
-- **ListingAddressService** (`src/lib/services/listing-address.ts`): Real estate listing URL address extraction service
+- **GrokAddressService** (`src/lib/services/grok-address.ts`): AI-powered multimodal address extraction with agent workflow coordination
 
 ### MCP Integration
 - **Main MCP Endpoint**: `src/app/api/mcp/route.ts` - Legacy JSON-RPC implementation (still active)
 - **Vercel MCP Adapter**: `src/app/mcp/[transport]/route.ts` - Modern MCP handler with enhanced connection management
 - **Transport**: Supports both Server-Sent Events (SSE) and HTTP streaming via Vercel MCP adapter
 - **Available Tools**:
-  - `check_opportunity_zone`: Check coordinates or addresses for OZ status (includes Google Maps link)
-  - `geocode_address`: Convert addresses to coordinates
-  - `get_listing_address`: Extract addresses from real estate listing URLs (Zillow, Realtor.com, etc.)
+  - `check_opportunity_zone`: Check coordinates or addresses for OZ status (includes interactive Google Maps embed)
+  - `geocode_address`: Convert addresses to coordinates with caching
+  - `grok_address`: Extract U.S. addresses from multimodal inputs (screenshots, HTML, URLs, metadata) using AI-powered agent workflow with Claude/OpenAI vision and ≥80% confidence threshold
   - `get_oz_status`: Get service status and metrics including MCP connection status
 
 ### MCP Connection Management & Monitoring
@@ -99,6 +99,10 @@ Required environment variables:
 - `GEOCODING_API_KEY`: API key for geocode.maps.co service
 - `NEXTAUTH_SECRET`: Secret for NextAuth session encryption
 - `NEXTAUTH_URL`: Base URL for OAuth callbacks
+
+Optional environment variables for `grok_address` tool:
+- `ANTHROPIC_API_KEY`: Anthropic Claude API key for vision-based address extraction (primary)
+- `OPENAI_API_KEY`: OpenAI GPT-4 Vision API key for address extraction (fallback)
 
 ## Code Organization
 
