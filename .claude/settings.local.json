@@ -43,7 +43,9 @@
       "WebFetch(domain:block.github.io)",
       "Read(//var/folders/7q/j6fbl32j13n1dg03tz5cycyc0000gp/T/TemporaryItems/NSIRD_screencaptureui_EJ50hS/**)",
       "Read(//var/folders/7q/j6fbl32j13n1dg03tz5cycyc0000gp/T/TemporaryItems/NSIRD_screencaptureui_MYPKXs/**)",
-      "Read(//var/folders/7q/j6fbl32j13n1dg03tz5cycyc0000gp/T/TemporaryItems/NSIRD_screencaptureui_PybuUI/**)"
+      "Read(//var/folders/7q/j6fbl32j13n1dg03tz5cycyc0000gp/T/TemporaryItems/NSIRD_screencaptureui_PybuUI/**)",
+      "Read(//var/folders/7q/j6fbl32j13n1dg03tz5cycyc0000gp/T/TemporaryItems/NSIRD_screencaptureui_kYBkJa/**)",
+      "Read(//Users/betojuareziii/Applications/oz-mcp-extension/**)"
     ],
     "deny": []
   }

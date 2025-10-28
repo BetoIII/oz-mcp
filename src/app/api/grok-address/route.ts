@@ -68,18 +68,30 @@ export async function POST(request: Request) {
       try {
         const response = await fetch(url, {
           headers: {
-            'User-Agent': 'Opportunity Zone Extension',
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
           }
         })
+        console.log('[grok-address] Fetch response status:', response.status, response.statusText)
         if (response.ok) {
           htmlContent = await response.text()
-          console.log('[grok-address] HTML fetched successfully')
+          console.log('[grok-address] HTML fetched successfully, length:', htmlContent.length)
+          console.log('[grok-address] First 200 chars:', htmlContent.substring(0, 200))
+        } else {
+          console.warn('[grok-address] Fetch returned non-OK status:', response.status)
         }
       } catch (fetchError) {
         console.warn('[grok-address] Failed to fetch HTML:', fetchError)
       }
     }
+
+    console.log('[grok-address] Calling grokAddress with:', {
+      hasScreenshot: !!screenshot,
+      hasHtml: !!htmlContent,
+      htmlLength: htmlContent?.length || 0,
+      hasUrl: !!url,
+      hasMetadata: !!metadata
+    })
 
     const result = await grokAddress({
       screenshot,
