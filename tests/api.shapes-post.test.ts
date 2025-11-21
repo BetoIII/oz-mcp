@@ -67,12 +67,12 @@ class TestPostGISService {
     }
 
     try {
-      const result = await this.prisma.$queryRaw<{ available: boolean }[]>({
+      const result = await this.prisma.$queryRaw({
         strings: ['SELECT EXISTS( SELECT 1 FROM pg_extension WHERE extname = \'postgis\' ) as available'],
         values: []
-      });
+      }) as { available: boolean }[];
 
-      this.isPostGISEnabled = result[0]?.available || false;
+      this.isPostGISEnabled = result[0]?.available ?? false;
       return this.isPostGISEnabled;
     } catch (error) {
       this.isPostGISEnabled = false;
@@ -112,13 +112,13 @@ class TestPostGISService {
     }
 
     try {
-      const result = await this.prisma.$queryRaw<{
-        geoid: string;
-        geometry: string;
-      }[]>({
+      const result = await this.prisma.$queryRaw({
         strings: ['SELECT geoid, ST_AsGeoJSON(COALESCE("simplifiedGeom", "originalGeom")) as geometry FROM "OpportunityZone" WHERE geoid = ANY($1::text[]) ORDER BY geoid'],
         values: [zoneIds]
-      });
+      }) as {
+        geoid: string;
+        geometry: string;
+      }[];
 
       const features = result.map(row => ({
         type: 'Feature' as const,
@@ -336,14 +336,15 @@ test('Zone IDs validation - boundary conditions', () => {
 test('GeoJSON geometry parsing - valid polygon', () => {
   const mockGeometry = '{"type":"Polygon","coordinates":[[[-118.5,34.0],[-118.4,34.0],[-118.4,34.1],[-118.5,34.1],[-118.5,34.0]]]}';
 
-  let parsedGeometry;
+  let parsedGeometry: { type: string; coordinates: number[][][] } | undefined;
   assert.doesNotThrow(() => {
     parsedGeometry = JSON.parse(mockGeometry);
   }, 'Should parse valid GeoJSON');
 
-  assert.strictEqual(parsedGeometry.type, 'Polygon', 'Should be Polygon type');
-  assert.ok(Array.isArray(parsedGeometry.coordinates), 'Should have coordinates array');
-  assert.ok(parsedGeometry.coordinates[0].length >= 4, 'Should have minimum coordinate points for polygon');
+  assert.ok(parsedGeometry, 'Should have parsed geometry');
+  assert.strictEqual(parsedGeometry!.type, 'Polygon', 'Should be Polygon type');
+  assert.ok(Array.isArray(parsedGeometry!.coordinates), 'Should have coordinates array');
+  assert.ok(parsedGeometry!.coordinates[0].length >= 4, 'Should have minimum coordinate points for polygon');
 });
 
 test('Error handling - malformed geometry', () => {

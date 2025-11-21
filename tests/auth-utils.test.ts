@@ -22,11 +22,9 @@ class AuthenticationError extends Error {
 // Mock prisma and auth for testing
 class MockPrisma {
   private shouldFailConnection: boolean;
-  private shouldFailQuery: boolean;
 
-  constructor(shouldFailConnection = false, shouldFailQuery = false) {
+  constructor(shouldFailConnection = false) {
     this.shouldFailConnection = shouldFailConnection;
-    this.shouldFailQuery = shouldFailQuery;
   }
 
   async $connect() {
@@ -37,9 +35,6 @@ class MockPrisma {
 
   user = {
     async findFirst(options: any) {
-      if (this.shouldFailQuery) {
-        throw new Error('Query failed');
-      }
       return { id: 'test-user-id' };
     }
   };
@@ -260,14 +255,15 @@ test('Session validation - comprehensive session object validation', async () =>
 test('Database health check - error message consistency', async () => {
   const failingPrisma = new MockPrisma(true);
   const result = await testCheckDatabaseHealth(failingPrisma);
-  
+
   assert.strictEqual(result.healthy, false);
+  assert.ok(result.error, 'Should have error property');
   assert.ok(
-    result.error.includes('Database connection failed'),
+    result.error!.includes('Database connection failed'),
     'Error message should mention database connection failure'
   );
   assert.ok(
-    result.error.includes('check your database configuration'),
+    result.error!.includes('check your database configuration'),
     'Error message should provide actionable advice'
   );
 });

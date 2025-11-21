@@ -88,27 +88,28 @@ send_alert() {
 # Function to check MCP endpoint health
 check_mcp_health() {
     local base_url="https://oz-mcp.vercel.app"
-    
+
     log_message "INFO" "${BLUE}Checking MCP endpoint health...${NC}"
-    
-    # Check heartbeat endpoint
-    local heartbeat_status=$(curl -s -o /dev/null -w "%{http_code}" "$base_url/api/mcp-heartbeat" -X POST \
-        -H "Content-Type: application/json" \
-        -d '{"action":"stats"}')
-    
-    if [ "$heartbeat_status" -eq 200 ]; then
-        log_message "INFO" "${GREEN}MCP Heartbeat endpoint healthy (200)${NC}"
+
+    # NOTE: Heartbeat endpoint has been removed to prevent memory leaks
+    # It was causing issues with setInterval in serverless environment
+
+    # Check monitor endpoint
+    local monitor_status=$(curl -s -o /dev/null -w "%{http_code}" "$base_url/api/mcp-monitor")
+
+    if [ "$monitor_status" -eq 200 ]; then
+        log_message "INFO" "${GREEN}MCP Monitor endpoint healthy (200)${NC}"
     else
-        log_message "ERROR" "${RED}MCP Heartbeat endpoint unhealthy ($heartbeat_status)${NC}"
+        log_message "ERROR" "${RED}MCP Monitor endpoint unhealthy ($monitor_status)${NC}"
         ((ERROR_COUNT++))
     fi
-    
+
     # Check main MCP endpoint with a test request
     local mcp_status=$(curl -s -o /dev/null -w "%{http_code}" "$base_url/api/mcp" -X POST \
         -H "Content-Type: application/json" \
         -H "Authorization: Bearer test_token" \
         -d '{"jsonrpc":"2.0","method":"tools/call","params":{"name":"get_oz_status","arguments":{}},"id":1}')
-    
+
     if [ "$mcp_status" -eq 401 ]; then
         log_message "INFO" "${GREEN}MCP API endpoint responding (401 - auth required as expected)${NC}"
     elif [ "$mcp_status" -eq 200 ]; then

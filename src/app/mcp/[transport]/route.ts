@@ -494,10 +494,21 @@ const handler = async (req: Request) => {
   // Call the MCP handler and wrap the response to ensure cleanup
   try {
     const response = await mcpHandler(req);
-    
+
     // Add cleanup on response close for SSE streams
     if (response.body) {
       const originalBody = response.body;
+      let streamClosed = false;
+
+      // Force close connection after 55 seconds (before Vercel's 60s timeout)
+      const forceCloseTimeout = setTimeout(() => {
+        if (!streamClosed) {
+          console.log(`[MCP] Force closing connection ${connectionId} after 55s to prevent timeout`);
+          streamClosed = true;
+          mcpConnectionManager.closeConnection(connectionId);
+        }
+      }, 55000);
+
       const transformStream = new TransformStream({
         start() {
           console.log(`[MCP] Stream started for connection ${connectionId}`);
@@ -507,7 +518,11 @@ const handler = async (req: Request) => {
         },
         flush() {
           console.log(`[MCP] Stream ended/cancelled for connection ${connectionId}`);
-          mcpConnectionManager.closeConnection(connectionId);
+          clearTimeout(forceCloseTimeout);
+          if (!streamClosed) {
+            streamClosed = true;
+            mcpConnectionManager.closeConnection(connectionId);
+          }
         }
       });
 
@@ -517,7 +532,7 @@ const handler = async (req: Request) => {
         headers: response.headers,
       });
     }
-    
+
     // For non-streaming responses, clean up immediately
     mcpConnectionManager.closeConnection(connectionId);
     return response;

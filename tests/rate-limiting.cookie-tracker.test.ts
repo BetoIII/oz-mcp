@@ -110,13 +110,13 @@ test('createSearchTracker - creates new tracker', () => {
 });
 
 test('incrementSearchTracker - increments count', () => {
-  const original = { searchCount: 3, firstSearchDate: '2024-01-15T10:00:00.000Z' };
+  const original: SearchTracker = { searchCount: 3, firstSearchDate: '2024-01-15T10:00:00.000Z' };
   const incremented = incrementSearchTracker(original);
-  
+
   assert.strictEqual(incremented.searchCount, 4, 'Should increment search count');
   assert.strictEqual(
-    incremented.firstSearchDate, 
-    original.firstSearchDate, 
+    incremented.firstSearchDate,
+    original.firstSearchDate,
     'Should preserve first search date'
   );
   assert.strictEqual(

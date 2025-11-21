@@ -192,16 +192,16 @@ For Claude Desktop integration:
 ### MCP Connection Monitoring
 - **Dashboard**: Real-time monitoring at `/monitor`
 - **CLI Tool**: `scripts/monitor-mcp.sh` for command-line monitoring
-- **API Endpoints**: 
+- **API Endpoints**:
   - `/api/mcp-monitor` - Connection statistics and health
-  - `/api/mcp-heartbeat` - SSE heartbeat stream
 - **Documentation**: Complete monitoring guide in `MCP_MONITORING.md`
 
 ### Connection Management Features
-- **Connection Limits**: Max 10 concurrent connections
-- **Rate Limiting**: 30 requests/minute per IP
-- **Security**: Blocks Chrome extensions and undici clients from SSE
-- **Automatic Cleanup**: Stale connection removal with heartbeat monitoring
+- **Connection Limits**: Max 10 concurrent connections (reduced for serverless memory management)
+- **Rate Limiting**: 10 requests/minute per IP (aggressive limits to prevent abuse)
+- **Security**: Blocks bots, crawlers, and automated clients from SSE endpoints
+- **Automatic Cleanup**: Aggressive 30-second idle timeout with immediate memory cleanup
+- **Timeout Protection**: 60-second max duration with 55-second force-close to prevent Vercel timeouts
 - **Real-time Stats**: Active connections, rate limits, and health metrics
 
 ### Key Monitoring Commands

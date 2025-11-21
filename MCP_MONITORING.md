@@ -4,25 +4,27 @@ This document describes the MCP (Model Context Protocol) server optimizations im
 
 ## 🚀 Implemented Optimizations
 
-### 1. Connection Limits
-- **Maximum concurrent connections**: 10
-- **Connection timeout**: 5 minutes of inactivity
-- **Idle timeout**: 2 minutes without requests
-- Automatic cleanup of stale connections
+### 1. Connection Limits (Serverless-Optimized)
+- **Maximum concurrent connections**: 10 (reduced for memory management)
+- **Connection timeout**: 60 seconds max duration
+- **Idle timeout**: 30 seconds (aggressive cleanup)
+- **Force close**: Connections automatically closed at 55 seconds to prevent Vercel timeouts
+- Immediate memory cleanup of inactive connections
 
-### 2. Rate Limiting
-- **Rate limit**: 30 requests per minute per client IP
+### 2. Aggressive Rate Limiting
+- **Rate limit**: 10 requests per minute per client IP (reduced to prevent abuse)
 - **Window**: Rolling 60-second window
+- **Bot blocking**: Automatic blocking of bots, crawlers, and automated clients
 - Automatic rate limit headers in responses:
   - `X-RateLimit-Limit`: Maximum requests per minute
   - `X-RateLimit-Remaining`: Remaining requests in current window
   - `X-RateLimit-Reset`: Timestamp when rate limit resets
 
-### 3. SSE Heartbeat/Keepalive
-- **Heartbeat interval**: 30 seconds
-- **Heartbeat endpoint**: `/api/mcp-heartbeat`
-- Automatic connection health monitoring
-- Graceful connection cleanup
+### 3. Memory Management
+- **Aggressive cleanup**: Every 10 seconds
+- **Immediate removal**: Inactive connections deleted from memory immediately
+- **Garbage collection hints**: Manual GC triggers when available
+- **No long-running timers**: SSE heartbeat endpoint removed to prevent memory leaks
 
 ### 4. Monitoring & Alerting
 - **Real-time monitoring**: Live connection statistics
@@ -52,11 +54,8 @@ GET /api/mcp-monitor?action=connections
 GET /api/mcp-monitor?action=ratelimits
 ```
 
-#### Heartbeat
-```bash
-GET /api/mcp-heartbeat     # SSE stream with heartbeats
-POST /api/mcp-heartbeat    # Get connection stats
-```
+#### Connection Monitoring
+> **Note**: The `/api/mcp-heartbeat` endpoint has been removed to prevent memory leaks in serverless environments. Use `/api/mcp-monitor` for connection statistics.
 
 ## 🔧 CLI Monitoring Tool
 

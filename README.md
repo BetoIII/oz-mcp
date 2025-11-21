@@ -305,7 +305,6 @@ Key tables:
 - `POST /api/oauth/register` - Register OAuth client
 - `POST /api/oauth/token` - Exchange authorization codes for tokens
 - `GET /api/mcp-monitor` - MCP connection statistics and health
-- `GET /api/mcp-heartbeat` - SSE heartbeat stream for connection monitoring
 
 ### MCP Endpoints
 
@@ -317,8 +316,10 @@ Key tables:
 
 - **Temporary Keys**: 5 requests per key
 - **Authenticated Users**: 5 free searches per month (rolling 30-day window)
-- **MCP Connections**: Maximum 10 concurrent connections
-- **Rate Limiting**: 30 requests per minute per IP address
+- **MCP Connections**: Maximum 10 concurrent connections (reduced for memory management)
+- **Rate Limiting**: 10 requests per minute per IP address (aggressive limits for SSE)
+- **Connection Timeout**: 60 seconds max duration (serverless optimization)
+- **Idle Timeout**: 30 seconds (aggressive cleanup)
 - **Premium**: Custom limits available through dashboard
 
 ## 🧪 Testing

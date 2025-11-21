@@ -42,12 +42,12 @@ class TestPostGISService {
     }
 
     try {
-      const result = await this.prisma.$queryRaw<{ available: boolean }[]>({
+      const result = await this.prisma.$queryRaw({
         strings: ['SELECT EXISTS( SELECT 1 FROM pg_extension WHERE extname = \'postgis\' ) as available'],
         values: []
-      });
-      
-      this.isPostGISEnabled = result[0]?.available || false;
+      }) as { available: boolean }[];
+
+      this.isPostGISEnabled = result[0]?.available ?? false;
       return this.isPostGISEnabled;
     } catch (error) {
       this.isPostGISEnabled = false;
@@ -70,10 +70,10 @@ class TestPostGISService {
     }
 
     try {
-      const result = await this.prisma.$queryRaw<{ geoid: string }[]>({
+      const result = await this.prisma.$queryRaw({
         strings: ['SELECT * FROM check_point_in_opportunity_zone_fast($1, $2)'],
         values: [lat, lon]
-      });
+      }) as { geoid: string }[];
 
       const isInZone = result.length > 0 && !!result[0]?.geoid;
       
